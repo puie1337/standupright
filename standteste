@@ -1745,7 +1745,10 @@ local configContent = makeContentFrame(bodyArea)
 
 local CONFIG_FILE = "bss_config.json"
 
--- ── helpers to persist data via writefile/readfile (executor API) ──
+-- ── helpers to persist config via getgenv() (works on Delta mobile) ──
+-- Falls back to writefile/readfile if available (PC executors)
+local CONFIG_KEY = "__BSSConfig__"
+
 local function saveConfig()
     local cfg = {
         webhookURL      = webhookURL,
@@ -1753,20 +1756,39 @@ local function saveConfig()
         standWebhookURL = standWebhookURL,
         standMentionID  = standMentionID,
         standStopList   = standStopList,
-        autoLoad        = true,
     }
-    local ok, encoded = pcall(function() return HttpService:JSONEncode(cfg) end)
-    if not ok then return false, "JSON encode error" end
-    local writeOk, err = pcall(function() writefile(CONFIG_FILE, encoded) end)
-    if not writeOk then return false, tostring(err) end
+    -- Always save to getgenv for in-session persistence
+    pcall(function() getgenv()[CONFIG_KEY] = cfg end)
+    -- Also try writefile for executors that support it
+    pcall(function()
+        if writefile then
+            local ok, encoded = pcall(function() return HttpService:JSONEncode(cfg) end)
+            if ok then writefile(CONFIG_FILE, encoded) end
+        end
+    end)
     return true, "Saved!"
 end
 
 local function loadConfig()
-    local ok, raw = pcall(function() return readfile(CONFIG_FILE) end)
-    if not ok or not raw or raw == "" then return false, "No config file found" end
-    local parseOk, cfg = pcall(function() return HttpService:JSONDecode(raw) end)
-    if not parseOk or type(cfg) ~= "table" then return false, "Parse error" end
+    local cfg = nil
+    -- Try readfile first (PC executors)
+    pcall(function()
+        if readfile then
+            local raw = readfile(CONFIG_FILE)
+            if raw and raw ~= "" then
+                local ok, decoded = pcall(function() return HttpService:JSONDecode(raw) end)
+                if ok and type(decoded) == "table" then cfg = decoded end
+            end
+        end
+    end)
+    -- Fall back to getgenv memory store
+    if not cfg then
+        pcall(function()
+            local stored = getgenv()[CONFIG_KEY]
+            if type(stored) == "table" then cfg = stored end
+        end)
+    end
+    if not cfg then return false, "No saved config found" end
     if cfg.webhookURL      then webhookURL      = cfg.webhookURL      end
     if cfg.webhookInterval then webhookInterval = cfg.webhookInterval end
     if cfg.standWebhookURL then standWebhookURL = cfg.standWebhookURL end
