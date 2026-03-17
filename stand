@@ -1,3 +1,4 @@
+-- v3-fixed
 -- ══════════════════════════════════════════════
 -- All-in-One Script: Boss Spammer + Webhook + Stand Auto-Roll
 -- Tabs: ⚔ Spammer | 🔔 Webhook | ✦ Stand Roll
@@ -27,7 +28,7 @@ end)
 -- ──────────────────────────────────────────────
 -- BOSS SPAMMER CONFIG
 -- ──────────────────────────────────────────────
-local STUDS_BEHIND = 4
+local STUDS_BEHIND = 8
 local FIRE_RATE    = 0.05
 local TWEEN_TIME   = 0.3
 
@@ -38,6 +39,8 @@ local useTween         = true
 local goActive         = false
 local spamActive       = false
 local autoFireActive   = false
+local autoFireNPCActive = false
+local autoDiavoloActive = false
 local autoSummonActive = false
 local questActive      = false
 
@@ -165,23 +168,68 @@ local function moveBehindBoss()
 end
 
 -- ──────────────────────────────────────────────
--- M1 SPAMMER
+-- SELECTABLE REMOTE SPAMMER
 -- ──────────────────────────────────────────────
-local function fireM1()
-	local char = getCharacter()
-	if not char then return end
-	local standEvents = char:FindFirstChild("StandEvents")
-		or char:WaitForChild("StandEvents", 1)
-	if not standEvents then return end
-	local m1 = standEvents:FindFirstChild("M1")
-	if not m1 then return end
-	pcall(function() m1:FireServer() end)
+
+-- Table of available remotes. "selected" is toggled from the GUI.
+local SPAM_REMOTES = {
+	{ id = "M1",      label = "M1",      selected = true,  fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("M1"); if not ev then return end
+		pcall(function() ev:FireServer() end)
+	end},
+	{ id = "Barrage", label = "Barrage", selected = false, fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("Barrage"); if not ev then return end
+		pcall(function() ev:FireServer(true) end)
+	end},
+	{ id = "Heavy",   label = "Heavy",   selected = false, fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("Heavy"); if not ev then return end
+		pcall(function() ev:FireServer() end)
+	end},
+	{ id = "Slash",   label = "Slash",   selected = false, fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("Slash"); if not ev then return end
+		pcall(function() ev:FireServer() end)
+	end},
+	{ id = "Soul",    label = "Soul",    selected = false, fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("Soul"); if not ev then return end
+		pcall(function() ev:FireServer() end)
+	end},
+	{ id = "Par",     label = "Par",     selected = false, fire = function()
+		local char = getCharacter(); if not char then return end
+		local se = char:FindFirstChild("StandEvents") or char:WaitForChild("StandEvents",1)
+		if not se then return end
+		local ev = se:FindFirstChild("Par"); if not ev then return end
+		pcall(function() ev:FireServer() end)
+	end},
+}
+
+-- Fires all currently selected remotes
+local function fireSelectedRemotes()
+	for _, remote in ipairs(SPAM_REMOTES) do
+		if remote.selected then
+			remote.fire()
+		end
+	end
 end
 
 task.spawn(function()
 	while true do
 		if spamActive then
-			fireM1()
+			fireSelectedRemotes()
 			task.wait(FIRE_RATE)
 		else
 			task.wait(0.05)
@@ -234,7 +282,52 @@ task.spawn(function()
 end)
 
 -- ──────────────────────────────────────────────
--- AUTO SUMMON
+-- AUTO FIRE NPC (JOTARO'S LAIR) LOOP
+-- ──────────────────────────────────────────────
+local lastAutoFireNPC = 0
+
+task.spawn(function()
+	while true do
+		if autoFireNPCActive then
+			local now = tick()
+			if now - lastAutoFireNPC >= 1 then
+				lastAutoFireNPC = now
+				pcall(function()
+					local Event = workspace.Map.NPCs:GetChildren()[41].Done
+					Event:FireServer()
+				end)
+			end
+			task.wait(0.05)
+		else
+			task.wait(0.05)
+		end
+	end
+end)
+
+-- ──────────────────────────────────────────────
+-- AUTO FIRE NPC (DIAVOLO'S LAIR) LOOP
+-- ──────────────────────────────────────────────
+local lastAutoDiavolo = 0
+
+task.spawn(function()
+	while true do
+		if autoDiavoloActive then
+			local now = tick()
+			if now - lastAutoDiavolo >= 1 then
+				lastAutoDiavolo = now
+				pcall(function()
+					local Event = workspace.Map.NPCs.i_stabman.Done
+					Event:FireServer()
+				end)
+			end
+			task.wait(0.05)
+		else
+			task.wait(0.05)
+		end
+	end
+end)
+
+-- ──────────────────────────────────────────────
 -- ──────────────────────────────────────────────
 local summonDeathConn  = nil
 local summonFireCount  = 0
@@ -1154,7 +1247,8 @@ end)
 
 makeSection(spamContent, "Combat", 3, TS.pri)
 
-local row3 = makeRow(spamContent, "Spam M1:", 4, TS.pri)
+-- ── Auto Spam toggle row ──────────────────────────────────────
+local row3 = makeRow(spamContent, "Auto Spam:", 4, TS.pri)
 local spamToggleBtn, setSpamVis = makeToggle(row3, false, TS.pri)
 local spamLabel = makeStateBadge(row3)
 spamToggleBtn.MouseButton1Click:Connect(function()
@@ -1163,7 +1257,79 @@ spamToggleBtn.MouseButton1Click:Connect(function()
     spamLabel.TextColor3= spamActive and TS.bad or DIM
 end)
 
-local row4 = makeRow(spamContent, "Auto Fire (NPC):", 5, TS.pri)
+-- ── Selectable remote buttons ─────────────────────────────────
+local remoteSelectFrame = Instance.new("Frame")
+remoteSelectFrame.Size             = UDim2.new(1, 0, 0, 0)
+remoteSelectFrame.AutomaticSize    = Enum.AutomaticSize.Y
+remoteSelectFrame.BackgroundColor3 = CARD
+remoteSelectFrame.BorderSizePixel  = 0
+remoteSelectFrame.LayoutOrder      = 5
+remoteSelectFrame.Parent           = spamContent
+corner(10, remoteSelectFrame)
+newStroke(TS.pri, 0.7, remoteSelectFrame)
+pad(7, 7, 8, 8, remoteSelectFrame)
+
+-- UIListLayout must be added BEFORE children
+local remoteVList = Instance.new("UIListLayout")
+remoteVList.Padding   = UDim.new(0, 4)
+remoteVList.SortOrder = Enum.SortOrder.LayoutOrder
+remoteVList.Parent    = remoteSelectFrame
+
+local remoteSelectHeader = Instance.new("TextLabel")
+remoteSelectHeader.Text               = "SELECT ATTACKS TO SPAM"
+remoteSelectHeader.Font               = Enum.Font.GothamBold
+remoteSelectHeader.TextSize           = 9
+remoteSelectHeader.TextColor3         = TS.pri
+remoteSelectHeader.BackgroundTransparency = 1
+remoteSelectHeader.Size               = UDim2.new(1, 0, 0, 16)
+remoteSelectHeader.TextXAlignment     = Enum.TextXAlignment.Left
+remoteSelectHeader.LayoutOrder        = 0
+remoteSelectHeader.Parent             = remoteSelectFrame
+
+local remoteGrid = Instance.new("Frame")
+remoteGrid.Size             = UDim2.new(1, 0, 0, 0)
+remoteGrid.AutomaticSize    = Enum.AutomaticSize.Y
+remoteGrid.BackgroundTransparency = 1
+remoteGrid.LayoutOrder      = 1
+remoteGrid.Parent           = remoteSelectFrame
+
+local remoteGridLayout = Instance.new("UIGridLayout")
+remoteGridLayout.CellSize          = UDim2.new(0, 82, 0, 28)
+remoteGridLayout.CellPadding       = UDim2.new(0, 5, 0, 5)
+remoteGridLayout.HorizontalAlignment= Enum.HorizontalAlignment.Left
+remoteGridLayout.SortOrder         = Enum.SortOrder.LayoutOrder
+remoteGridLayout.Parent            = remoteGrid
+
+-- Build one pill button per remote entry
+local remoteSelectBtns = {}
+for i, remote in ipairs(SPAM_REMOTES) do
+    local pill = Instance.new("TextButton")
+    pill.Text             = remote.label
+    pill.Font             = Enum.Font.GothamBold
+    pill.TextSize         = 11
+    pill.TextColor3       = remote.selected and TS.bad or MUTED
+    pill.BackgroundColor3 = remote.selected and Color3.fromRGB(60, 14, 20) or Color3.fromRGB(22, 18, 35)
+    pill.BorderSizePixel  = 0
+    pill.LayoutOrder      = i
+    pill.Parent           = remoteGrid
+    corner(7, pill)
+    local pillStroke = newStroke(remote.selected and TS.pri or DIM, remote.selected and 1.2 or 0.7, pill)
+
+    pill.MouseButton1Click:Connect(function()
+        remote.selected = not remote.selected
+        tw(pill, 0.14, {
+            BackgroundColor3 = remote.selected and Color3.fromRGB(60, 14, 20) or Color3.fromRGB(22, 18, 35),
+            TextColor3       = remote.selected and TS.bad or MUTED,
+        })
+        tw(pillStroke, 0.14, {
+            Color = remote.selected and TS.pri or DIM,
+        })
+        pillStroke.Thickness = remote.selected and 1.2 or 0.7
+    end)
+    remoteSelectBtns[i] = pill
+end
+
+local row4 = makeRow(spamContent, "Auto Dio's Lair:", 6, TS.pri)
 local autoFireToggleBtn, setAutoFireVis = makeToggle(row4, false, TS.pri)
 local autoFireLabel = makeStateBadge(row4)
 autoFireToggleBtn.MouseButton1Click:Connect(function()
@@ -1172,9 +1338,27 @@ autoFireToggleBtn.MouseButton1Click:Connect(function()
     autoFireLabel.TextColor3= autoFireActive and Color3.fromRGB(255, 165, 50) or DIM
 end)
 
-makeSection(spamContent, "Stand", 6, TS.pri)
+local row4b = makeRow(spamContent, "Auto Jotaro's Lair:", 7, TS.pri)
+local autoFireNPCToggleBtn, setAutoFireNPCVis = makeToggle(row4b, false, TS.pri)
+local autoFireNPCLabel = makeStateBadge(row4b)
+autoFireNPCToggleBtn.MouseButton1Click:Connect(function()
+    autoFireNPCActive = not autoFireNPCActive; setAutoFireNPCVis(autoFireNPCActive)
+    autoFireNPCLabel.Text      = autoFireNPCActive and "ON" or "OFF"
+    autoFireNPCLabel.TextColor3= autoFireNPCActive and Color3.fromRGB(255, 165, 50) or DIM
+end)
 
-local row5 = makeRow(spamContent, "Auto Summon:", 7, TS.pri)
+local row4c = makeRow(spamContent, "Auto Diavolo's Lair:", 8, TS.pri)
+local autoDiavoloToggleBtn, setAutoDiavoloVis = makeToggle(row4c, false, TS.pri)
+local autoDiavoloLabel = makeStateBadge(row4c)
+autoDiavoloToggleBtn.MouseButton1Click:Connect(function()
+    autoDiavoloActive = not autoDiavoloActive; setAutoDiavoloVis(autoDiavoloActive)
+    autoDiavoloLabel.Text      = autoDiavoloActive and "ON" or "OFF"
+    autoDiavoloLabel.TextColor3= autoDiavoloActive and Color3.fromRGB(255, 165, 50) or DIM
+end)
+
+makeSection(spamContent, "Stand", 9, TS.pri)
+
+local row5 = makeRow(spamContent, "Auto Summon:", 10, TS.pri)
 local autoSummonToggleBtn, setAutoSummonVis = makeToggle(row5, false, TS.pri)
 local autoSummonLabel = makeStateBadge(row5)
 autoSummonToggleBtn.MouseButton1Click:Connect(function()
@@ -1190,11 +1374,11 @@ summonCountLabel.TextSize            = 10
 summonCountLabel.TextColor3          = DIM
 summonCountLabel.BackgroundTransparency = 1
 summonCountLabel.Size                = UDim2.new(1, 0, 0, 14)
-summonCountLabel.LayoutOrder         = 8
+summonCountLabel.LayoutOrder         = 11
 summonCountLabel.TextXAlignment      = Enum.TextXAlignment.Right
 summonCountLabel.Parent              = spamContent
 
-local statusTxt, statusDot = makeStatusPill(spamContent, 9, TS.pri)
+local statusTxt, statusDot = makeStatusPill(spamContent, 12, TS.pri)
 statusTxt.Text = "Boss: searching..."
 
 -- ════════════════════════════════════════════════════════════
@@ -1598,7 +1782,7 @@ end)
 closeBtn.MouseButton1Click:Connect(function()
     spamActive = false; goActive = false; autoFireActive = false
     autoSummonActive = false; webhookActive = false; standRollActive = false
-    questActive = false
+    questActive = false; autoFireNPCActive = false; autoDiavoloActive = false
     if summonDeathConn then summonDeathConn:Disconnect() end
     tw(frame,     0.18, {BackgroundTransparency = 1})
     tw(glowFrame, 0.18, {BackgroundTransparency = 1})
@@ -1611,20 +1795,17 @@ end)
 local dragging, dragStart, startPos = false, nil, nil
 
 titleBar.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         dragging = true; dragStart = i.Position; startPos = frame.Position
     end
 end)
 titleBar.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1
-    or i.UserInputType == Enum.UserInputType.Touch then
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
         dragging = false
     end
 end)
 UserInputService.InputChanged:Connect(function(i)
-    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
-        or i.UserInputType == Enum.UserInputType.Touch) then
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local d  = i.Position - dragStart
         local np = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X,
                              startPos.Y.Scale, startPos.Y.Offset + d.Y)
