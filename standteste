@@ -119,26 +119,6 @@ end
 local function getModel()
 	local living = game.workspace:FindFirstChild("Living")
 	if not living then return nil end
-	local hrp = getRootPart()
-	-- If we have a character, find the closest Boss to us so two accounts
-	-- in different lairs don't both lock onto the same boss
-	if hrp then
-		local closest, closestDist = nil, math.huge
-		for _, obj in pairs(living:GetChildren()) do
-			if obj.Name == "Boss" then
-				local bossRoot = obj:FindFirstChild("HumanoidRootPart")
-					or obj:FindFirstChildWhichIsA("BasePart")
-				if bossRoot then
-					local dist = (bossRoot.Position - hrp.Position).Magnitude
-					if dist < closestDist then
-						closestDist = dist
-						closest = obj
-					end
-				end
-			end
-		end
-		return closest
-	end
 	return living:FindFirstChild("Boss")
 end
 
@@ -793,6 +773,14 @@ local THEME = {
         good = Color3.fromRGB( 80, 255, 155),
         bad  = Color3.fromRGB(255,  80,  80),
     },
+    config = {   -- ⚙  Soft Violet / Indigo
+        pri  = Color3.fromRGB(160, 110, 255),
+        glow = Color3.fromRGB(200, 160, 255),
+        text = Color3.fromRGB(230, 210, 255),
+        sub  = Color3.fromRGB(175, 150, 220),
+        good = Color3.fromRGB( 80, 255, 155),
+        bad  = Color3.fromRGB(255,  80,  80),
+    },
 }
 
 -- ────────────────────────────────────────────────────────────
@@ -981,7 +969,7 @@ local function makeTabPill(name, icon, order)
     btn.BackgroundColor3    = Color3.new(0,0,0)
     btn.BackgroundTransparency = 1
     btn.BorderSizePixel     = 0
-    btn.Size                = UDim2.new(0.25, 0, 1, 0)
+    btn.Size                = UDim2.new(0.20, 0, 1, 0)
     btn.LayoutOrder         = order
     btn.Parent              = tabBg
 
@@ -1013,6 +1001,7 @@ local spamTabBtn    = makeTabPill("spam",    "⚔  Spammer",   1)
 local webhookTabBtn = makeTabPill("webhook", "🔔  Webhook",   2)
 local standTabBtn   = makeTabPill("stand",   "★  Stand Roll", 3)
 local questTabBtn   = makeTabPill("quest",   "📜  Quests",    4)
+local configTabBtn  = makeTabPill("config",  "⚙  Config",     5)
 
 -- ────────────────────────────────────────────────────────────
 --  SCROLLABLE BODY
@@ -1747,11 +1736,364 @@ end)
 
 questStatusLabel = makeStatusPill(questContent, 5, TQ.pri)
 questStatusLabel.Text = "Idle"
-local function switchTab(tab)
+
+-- ════════════════════════════════════════════════════════════
+--  ⚙  CONFIG TAB  —  Soft Violet
+-- ════════════════════════════════════════════════════════════
+local TC = THEME.config
+local configContent = makeContentFrame(bodyArea)
+
+local CONFIG_FILE = "bss_config.json"
+
+-- ── helpers to persist data via writefile/readfile (executor API) ──
+local function saveConfig()
+    local cfg = {
+        webhookURL      = webhookURL,
+        webhookInterval = webhookInterval,
+        standWebhookURL = standWebhookURL,
+        standMentionID  = standMentionID,
+        standStopList   = standStopList,
+        autoLoad        = true,
+    }
+    local ok, encoded = pcall(function() return HttpService:JSONEncode(cfg) end)
+    if not ok then return false, "JSON encode error" end
+    local writeOk, err = pcall(function() writefile(CONFIG_FILE, encoded) end)
+    if not writeOk then return false, tostring(err) end
+    return true, "Saved!"
+end
+
+local function loadConfig()
+    local ok, raw = pcall(function() return readfile(CONFIG_FILE) end)
+    if not ok or not raw or raw == "" then return false, "No config file found" end
+    local parseOk, cfg = pcall(function() return HttpService:JSONDecode(raw) end)
+    if not parseOk or type(cfg) ~= "table" then return false, "Parse error" end
+    if cfg.webhookURL      then webhookURL      = cfg.webhookURL      end
+    if cfg.webhookInterval then webhookInterval = cfg.webhookInterval end
+    if cfg.standWebhookURL then standWebhookURL = cfg.standWebhookURL end
+    if cfg.standMentionID  then standMentionID  = cfg.standMentionID  end
+    if type(cfg.standStopList) == "table" then standStopList = cfg.standStopList end
+    return true, cfg
+end
+
+-- ── Status pill reused for feedback messages ──
+local cfgStatusLbl
+
+-- ── Section: Webhook Config ──
+makeSection(configContent, "Inventory Webhook", 1, TC.pri)
+
+-- URL input
+local cfgWHRow = makeRow(configContent, "Webhook URL:", 2, TC.pri)
+cfgWHRow.Size = UDim2.new(1, 0, 0, 56)
+local cfgWHBox = Instance.new("TextBox")
+cfgWHBox.Size               = UDim2.new(1, -18, 0, 22)
+cfgWHBox.Position           = UDim2.new(0, 9, 1, -28)
+cfgWHBox.BackgroundColor3   = INPUTBG
+cfgWHBox.BorderSizePixel    = 0
+cfgWHBox.Font               = Enum.Font.Gotham
+cfgWHBox.TextSize           = 9
+cfgWHBox.TextColor3         = TC.text
+cfgWHBox.PlaceholderText    = "https://discord.com/api/webhooks/..."
+cfgWHBox.PlaceholderColor3  = DIM
+cfgWHBox.Text               = webhookURL
+cfgWHBox.ClearTextOnFocus   = false
+cfgWHBox.ClipsDescendants   = true
+cfgWHBox.Parent             = cfgWHRow
+corner(6, cfgWHBox); newStroke(TC.pri, 0.6, cfgWHBox)
+cfgWHBox.FocusLost:Connect(function()
+    webhookURL = cfgWHBox.Text
+end)
+
+-- Interval stepper row
+local cfgIvRow = makeRow(configContent, "Send Interval (s):", 3, TC.pri)
+local IVSTEPS = {10, 15, 20, 30, 45, 60, 90, 120, 180, 300}
+local ivIdx = 6  -- default 60s
+for i, v in ipairs(IVSTEPS) do if v == webhookInterval then ivIdx = i end end
+
+local cfgIvMinus = Instance.new("TextButton")
+cfgIvMinus.Size = UDim2.new(0, 24, 0, 20); cfgIvMinus.Position = UDim2.new(1, -90, 0.5, -10)
+cfgIvMinus.Text = "−"; cfgIvMinus.Font = Enum.Font.GothamBold; cfgIvMinus.TextSize = 14
+cfgIvMinus.TextColor3 = TC.pri; cfgIvMinus.BackgroundColor3 = CARD
+cfgIvMinus.BorderSizePixel = 0; cfgIvMinus.Parent = cfgIvRow
+corner(6, cfgIvMinus); newStroke(TC.pri, 0.7, cfgIvMinus)
+
+local cfgIvLbl = Instance.new("TextLabel")
+cfgIvLbl.Size = UDim2.new(0, 38, 0, 20); cfgIvLbl.Position = UDim2.new(1, -64, 0.5, -10)
+cfgIvLbl.Text = tostring(IVSTEPS[ivIdx]).."s"
+cfgIvLbl.Font = Enum.Font.GothamBold; cfgIvLbl.TextSize = 12
+cfgIvLbl.TextColor3 = TC.text; cfgIvLbl.BackgroundTransparency = 1
+cfgIvLbl.TextXAlignment = Enum.TextXAlignment.Center
+cfgIvLbl.Parent = cfgIvRow
+
+local cfgIvPlus = Instance.new("TextButton")
+cfgIvPlus.Size = UDim2.new(0, 24, 0, 20); cfgIvPlus.Position = UDim2.new(1, -24, 0.5, -10)
+cfgIvPlus.Text = "+"; cfgIvPlus.Font = Enum.Font.GothamBold; cfgIvPlus.TextSize = 14
+cfgIvPlus.TextColor3 = TC.pri; cfgIvPlus.BackgroundColor3 = CARD
+cfgIvPlus.BorderSizePixel = 0; cfgIvPlus.Parent = cfgIvRow
+corner(6, cfgIvPlus); newStroke(TC.pri, 0.7, cfgIvPlus)
+
+local function updateCfgIv()
+    cfgIvLbl.Text = tostring(IVSTEPS[ivIdx]).."s"
+    webhookInterval = IVSTEPS[ivIdx]
+end
+cfgIvMinus.MouseButton1Click:Connect(function() if ivIdx > 1 then ivIdx -= 1; updateCfgIv() end end)
+cfgIvPlus.MouseButton1Click:Connect(function() if ivIdx < #IVSTEPS then ivIdx += 1; updateCfgIv() end end)
+
+-- ── Section: Stand Roll Webhook ──
+makeSection(configContent, "Stand Roll Webhook", 4, TC.pri)
+
+local cfgSWHRow = makeRow(configContent, "Stand Webhook URL:", 5, TC.pri)
+cfgSWHRow.Size = UDim2.new(1, 0, 0, 56)
+local cfgSWHBox = Instance.new("TextBox")
+cfgSWHBox.Size               = UDim2.new(1, -18, 0, 22)
+cfgSWHBox.Position           = UDim2.new(0, 9, 1, -28)
+cfgSWHBox.BackgroundColor3   = INPUTBG
+cfgSWHBox.BorderSizePixel    = 0
+cfgSWHBox.Font               = Enum.Font.Gotham
+cfgSWHBox.TextSize           = 9
+cfgSWHBox.TextColor3         = TC.text
+cfgSWHBox.PlaceholderText    = "https://discord.com/api/webhooks/..."
+cfgSWHBox.PlaceholderColor3  = DIM
+cfgSWHBox.Text               = standWebhookURL
+cfgSWHBox.ClearTextOnFocus   = false
+cfgSWHBox.ClipsDescendants   = true
+cfgSWHBox.Parent             = cfgSWHRow
+corner(6, cfgSWHBox); newStroke(TC.pri, 0.6, cfgSWHBox)
+cfgSWHBox.FocusLost:Connect(function()
+    standWebhookURL = cfgSWHBox.Text
+end)
+
+local cfgMentRow = makeRow(configContent, "Mention User ID:", 6, TC.pri)
+cfgMentRow.Size = UDim2.new(1, 0, 0, 56)
+local cfgMentBox = Instance.new("TextBox")
+cfgMentBox.Size               = UDim2.new(1, -18, 0, 22)
+cfgMentBox.Position           = UDim2.new(0, 9, 1, -28)
+cfgMentBox.BackgroundColor3   = INPUTBG
+cfgMentBox.BorderSizePixel    = 0
+cfgMentBox.Font               = Enum.Font.Gotham
+cfgMentBox.TextSize           = 9
+cfgMentBox.TextColor3         = TC.text
+cfgMentBox.PlaceholderText    = "Discord User ID (optional)"
+cfgMentBox.PlaceholderColor3  = DIM
+cfgMentBox.Text               = standMentionID
+cfgMentBox.ClearTextOnFocus   = false
+cfgMentBox.Parent             = cfgMentRow
+corner(6, cfgMentBox); newStroke(TC.pri, 0.6, cfgMentBox)
+cfgMentBox.FocusLost:Connect(function()
+    standMentionID = cfgMentBox.Text
+end)
+
+-- ── Section: Stop List ──
+makeSection(configContent, "Auto-Roll Stop List", 7, TC.pri)
+
+local stopListFrame = Instance.new("Frame")
+stopListFrame.Size             = UDim2.new(1, 0, 0, 0)
+stopListFrame.AutomaticSize    = Enum.AutomaticSize.Y
+stopListFrame.BackgroundColor3 = CARD
+stopListFrame.BorderSizePixel  = 0
+stopListFrame.LayoutOrder      = 8
+stopListFrame.Parent           = configContent
+corner(10, stopListFrame); newStroke(TC.pri, 0.8, stopListFrame)
+pad(8, 8, 10, 10, stopListFrame)
+local stopListInner = Instance.new("Frame")
+stopListInner.Size          = UDim2.new(1, 0, 0, 0)
+stopListInner.AutomaticSize = Enum.AutomaticSize.Y
+stopListInner.BackgroundTransparency = 1
+stopListInner.Parent        = stopListFrame
+vlist(4, stopListInner)
+
+local stopListBox = Instance.new("TextBox")
+stopListBox.Size              = UDim2.new(1, 0, 0, 0)
+stopListBox.AutomaticSize     = Enum.AutomaticSize.Y
+stopListBox.BackgroundColor3  = INPUTBG
+stopListBox.BorderSizePixel   = 0
+stopListBox.Font               = Enum.Font.Gotham
+stopListBox.TextSize           = 10
+stopListBox.TextColor3         = TC.text
+stopListBox.PlaceholderText    = "Legendary, Hacker, Scourge, ..."
+stopListBox.PlaceholderColor3  = DIM
+stopListBox.ClearTextOnFocus   = false
+stopListBox.MultiLine          = false
+stopListBox.ClipsDescendants   = true
+stopListBox.Text               = table.concat(standStopList, ", ")
+stopListBox.LayoutOrder        = 1
+stopListBox.Parent             = stopListInner
+corner(6, stopListBox); pad(5, 5, 6, 6, stopListBox)
+newStroke(TC.pri, 0.6, stopListBox)
+
+local stopHint = Instance.new("TextLabel")
+stopHint.Text               = "Separate entries with commas"
+stopHint.Font               = Enum.Font.Gotham
+stopHint.TextSize           = 9
+stopHint.TextColor3         = DIM
+stopHint.BackgroundTransparency = 1
+stopHint.Size               = UDim2.new(1, 0, 0, 14)
+stopHint.TextXAlignment     = Enum.TextXAlignment.Left
+stopHint.LayoutOrder        = 2
+stopHint.Parent             = stopListInner
+
+stopListBox.FocusLost:Connect(function()
+    local newList = {}
+    for entry in string.gmatch(stopListBox.Text, "([^,]+)") do
+        local trimmed = entry:match("^%s*(.-)%s*$")
+        if trimmed ~= "" then table.insert(newList, trimmed) end
+    end
+    standStopList = newList
+end)
+
+-- ── Section: Save / Load ──
+makeSection(configContent, "Save & Load Config", 9, TC.pri)
+
+local cfgSaveRow = Instance.new("Frame")
+cfgSaveRow.Size             = UDim2.new(1, 0, 0, 38)
+cfgSaveRow.BackgroundTransparency = 1
+cfgSaveRow.LayoutOrder      = 10
+cfgSaveRow.Parent           = configContent
+local cfgBtnLayout = Instance.new("UIListLayout")
+cfgBtnLayout.FillDirection  = Enum.FillDirection.Horizontal
+cfgBtnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+cfgBtnLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
+cfgBtnLayout.Padding        = UDim.new(0, 8)
+cfgBtnLayout.Parent         = cfgSaveRow
+
+local function makeActionBtn(label, col, parent)
+    local b = Instance.new("TextButton")
+    b.Text            = label
+    b.Font            = Enum.Font.GothamBold
+    b.TextSize        = 12
+    b.TextColor3      = WHITE
+    b.BackgroundColor3= col
+    b.BorderSizePixel = 0
+    b.Size            = UDim2.new(0, 118, 0, 30)
+    b.Parent          = parent
+    corner(8, b); newStroke(col, 0.9, b)
+    b.MouseEnter:Connect(function()
+        tw(b, 0.12, {BackgroundColor3 = col:Lerp(WHITE, 0.15)})
+    end)
+    b.MouseLeave:Connect(function()
+        tw(b, 0.12, {BackgroundColor3 = col})
+    end)
+    return b
+end
+
+local saveBtn = makeActionBtn("💾  Save Config", Color3.fromRGB(100, 200, 120), cfgSaveRow)
+local loadBtn = makeActionBtn("📂  Load Config", TC.pri, cfgSaveRow)
+
+-- Status feedback pill
+local cfgStatusFrame = Instance.new("Frame")
+cfgStatusFrame.Size             = UDim2.new(1, 0, 0, 26)
+cfgStatusFrame.BackgroundColor3 = CARD
+cfgStatusFrame.BorderSizePixel  = 0
+cfgStatusFrame.LayoutOrder      = 11
+cfgStatusFrame.Parent           = configContent
+corner(8, cfgStatusFrame); newStroke(TC.pri, 0.7, cfgStatusFrame)
+
+cfgStatusLbl = Instance.new("TextLabel")
+cfgStatusLbl.Text               = "No action taken yet."
+cfgStatusLbl.Font               = Enum.Font.Gotham
+cfgStatusLbl.TextSize           = 11
+cfgStatusLbl.TextColor3         = MUTED
+cfgStatusLbl.BackgroundTransparency = 1
+cfgStatusLbl.Size               = UDim2.new(1, 0, 1, 0)
+cfgStatusLbl.TextXAlignment     = Enum.TextXAlignment.Center
+cfgStatusLbl.Parent             = cfgStatusFrame
+
+-- ── Auto-Load toggle ──
+local autoLoadRow = makeRow(configContent, "Auto-load on join:", 12, TC.pri)
+local autoLoadBadge = Instance.new("TextLabel")
+autoLoadBadge.Text      = "OFF"
+autoLoadBadge.Font      = Enum.Font.GothamBold
+autoLoadBadge.TextSize  = 10
+autoLoadBadge.TextColor3= DIM
+autoLoadBadge.BackgroundTransparency = 1
+autoLoadBadge.Size      = UDim2.new(0, 30, 1, 0)
+autoLoadBadge.Position  = UDim2.new(1, -84, 0, 0)
+autoLoadBadge.TextXAlignment = Enum.TextXAlignment.Center
+autoLoadBadge.Parent    = autoLoadRow
+
+local autoLoadEnabled = false
+local autoLoadToggle, setAutoLoadVis = makeToggle(autoLoadRow, false, TC.pri)
+autoLoadToggle.MouseButton1Click:Connect(function()
+    autoLoadEnabled = not autoLoadEnabled
+    setAutoLoadVis(autoLoadEnabled)
+    autoLoadBadge.Text      = autoLoadEnabled and "ON" or "OFF"
+    autoLoadBadge.TextColor3= autoLoadEnabled and TC.good or DIM
+end)
+
+-- ── Wire up Save / Load ──
+saveBtn.MouseButton1Click:Connect(function()
+    -- flush current textbox values before saving
+    webhookURL      = cfgWHBox.Text
+    webhookInterval = IVSTEPS[ivIdx]
+    standWebhookURL = cfgSWHBox.Text
+    standMentionID  = cfgMentBox.Text
+    -- parse stop list
+    local newList = {}
+    for entry in string.gmatch(stopListBox.Text, "([^,]+)") do
+        local t = entry:match("^%s*(.-)%s*$")
+        if t ~= "" then table.insert(newList, t) end
+    end
+    standStopList = newList
+
+    local ok, msg = saveConfig()
+    if ok then
+        cfgStatusLbl.Text       = "✓ Config saved to " .. CONFIG_FILE
+        cfgStatusLbl.TextColor3 = TC.good
+    else
+        cfgStatusLbl.Text       = "✗ Save failed: " .. tostring(msg)
+        cfgStatusLbl.TextColor3 = TC.bad
+    end
+end)
+
+loadBtn.MouseButton1Click:Connect(function()
+    local ok, result = loadConfig()
+    if ok then
+        -- Refresh all input boxes with loaded values
+        cfgWHBox.Text   = webhookURL
+        cfgSWHBox.Text  = standWebhookURL
+        cfgMentBox.Text = standMentionID
+        stopListBox.Text= table.concat(standStopList, ", ")
+        -- Sync interval stepper
+        for i, v in ipairs(IVSTEPS) do
+            if v == webhookInterval then ivIdx = i end
+        end
+        updateCfgIv()
+        cfgStatusLbl.Text       = "✓ Config loaded successfully."
+        cfgStatusLbl.TextColor3 = TC.good
+    else
+        cfgStatusLbl.Text       = "✗ Load failed: " .. tostring(result)
+        cfgStatusLbl.TextColor3 = TC.bad
+    end
+end)
+
+-- ── Auto-load on script start ──
+task.spawn(function()
+    task.wait(0.5)  -- small delay to let GUI finish building
+    local ok, result = loadConfig()
+    if ok then
+        -- Refresh UI fields
+        cfgWHBox.Text   = webhookURL
+        cfgSWHBox.Text  = standWebhookURL
+        cfgMentBox.Text = standMentionID
+        stopListBox.Text= table.concat(standStopList, ", ")
+        for i, v in ipairs(IVSTEPS) do
+            if v == webhookInterval then ivIdx = i end
+        end
+        updateCfgIv()
+        autoLoadEnabled = true
+        setAutoLoadVis(true)
+        autoLoadBadge.Text      = "ON"
+        autoLoadBadge.TextColor3= TC.good
+        cfgStatusLbl.Text       = "✓ Config auto-loaded on join."
+        cfgStatusLbl.TextColor3 = TC.good
+    end
+end)
+
+
     spamContent.Visible    = (tab == "spam")
     webhookContent.Visible = (tab == "webhook")
     standContent.Visible   = (tab == "stand")
     questContent.Visible   = (tab == "quest")
+    configContent.Visible  = (tab == "config")
 
     local th = THEME[tab]
 
@@ -1777,6 +2119,7 @@ spamTabBtn.MouseButton1Click:Connect(function()    switchTab("spam")    end)
 webhookTabBtn.MouseButton1Click:Connect(function() switchTab("webhook") end)
 standTabBtn.MouseButton1Click:Connect(function()   switchTab("stand")   end)
 questTabBtn.MouseButton1Click:Connect(function()   switchTab("quest")   end)
+configTabBtn.MouseButton1Click:Connect(function()  switchTab("config")  end)
 
 -- ════════════════════════════════════════════════════════════
 --  MINIMIZE / CLOSE
