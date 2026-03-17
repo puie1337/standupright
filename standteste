@@ -356,7 +356,7 @@ local function isStandSummoned()
 		and playerFolder:FindFirstChild("Stand")
 		and playerFolder.Stand:FindFirstChild("Head")
 	if not head then return false end -- part missing = stand not summoned, keep trying
-	return head.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
+	return head.Transparency ~= 0 -- transparency 0 = visible = summoned
 end
 
 local function fireSummon()
