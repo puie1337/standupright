@@ -350,12 +350,13 @@ local function getArrowPart()
 end
 
 local function isStandSummoned()
-	local lowerTorso = workspace:FindFirstChild("Living")
-		and workspace.Living:FindFirstChild("muiecbro132")
-		and workspace.Living.muiecbro132:FindFirstChild("Stand")
-		and workspace.Living.muiecbro132.Stand:FindFirstChild("LowerTorso")
-	if not lowerTorso then return true end -- can't detect, assume summoned
-	return lowerTorso.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
+	local playerFolder = workspace:FindFirstChild("Living")
+		and workspace.Living:FindFirstChild(LocalPlayer.Name)
+	local lowerTorso = playerFolder
+		and playerFolder:FindFirstChild("Stand")
+		and playerFolder.Stand:FindFirstChild("LowerTorso")
+	if not lowerTorso then return false end -- part missing = stand not summoned, keep trying
+	return lowerTorso.Transparency == 0 -- transparency 0 = visible = summoned
 end
 
 local function fireSummon()
