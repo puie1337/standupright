@@ -350,9 +350,12 @@ local function getArrowPart()
 end
 
 local function isStandSummoned()
-	local arrowPart = getArrowPart()
-	if not arrowPart then return true end -- can't detect, assume summoned
-	return arrowPart.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
+	local humanoidRootPart = workspace:FindFirstChild("Living")
+		and workspace.Living:FindFirstChild("ampulamare1324")
+		and workspace.Living.ampulamare1324:FindFirstChild("Stand")
+		and workspace.Living.ampulamare1324.Stand:FindFirstChild("HumanoidRootPart")
+	if not humanoidRootPart then return true end -- can't detect, assume summoned
+	return humanoidRootPart.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
 end
 
 local function fireSummon()
