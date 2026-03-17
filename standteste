@@ -352,11 +352,11 @@ end
 local function isStandSummoned()
 	local playerFolder = workspace:FindFirstChild("Living")
 		and workspace.Living:FindFirstChild(LocalPlayer.Name)
-	local humanoidRootPart = playerFolder
+	local standLeanController = playerFolder
 		and playerFolder:FindFirstChild("Stand")
-		and playerFolder.Stand:FindFirstChild("HumanoidRootPart")
-	if not humanoidRootPart then return false end -- part missing = stand not summoned, keep trying
-	return humanoidRootPart.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
+		and playerFolder.Stand:FindFirstChild("StandLeanController")
+	if not standLeanController then return false end -- part missing = stand not summoned, keep trying
+	return standLeanController.Transparency ~= 1 -- transparency 1 = invisible = unsummoned
 end
 
 local function fireSummon()
