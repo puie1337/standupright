@@ -410,188 +410,187 @@ if LocalPlayer.Character then connectSummonDeath(LocalPlayer.Character) end
 -- AUTO QUEST
 -- ──────────────────────────────────────────────
 
-local AQ = {
-    running     = false,
-    smartQuest  = false,
-    selectedQuest = nil,
-    attackDelay = 0.15,
-    M1      = true,
-    Barrage = true,
-    Heavy   = false,
-}
+-- State (all prefixed AQ_ to never clash with anything else)
+local AQ_running      = false
+local AQ_smart        = false
+local AQ_selected     = nil   -- currently chosen quest table entry
+local AQ_M1           = true
+local AQ_Barrage      = true
+local AQ_Heavy        = false
+local AQ_delay        = 0.15
+local AQ_farmThread   = nil
+-- GUI refs filled in after GUI is built
+local AQ_statusLabel  = nil
+local AQ_dropBtn      = nil
 
 local AQ_Quests = {
-    { name = "Lvl 1  — Bad Gi",          level = 1,   enemyName = "Bad Gi",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 10 — Scary Monster",   level = 10,  enemyName = "Scary Monster",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 20 — Giorno Giovanna", level = 20,  enemyName = "Giorno Giovanna",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 30 — Rker Dummy",      level = 30,  enemyName = "Rker Dummy",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 40 — Yoshikage Kira",  level = 40,  enemyName = "Yoshikage Kira",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 50 — Dio Over Heaven", level = 50,  enemyName = "Dio Over Heaven",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 75 — Angelo",          level = 75,  enemyName = "Angelo",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 100 — Alien",          level = 100, enemyName = "Alien",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 125 — Jotaro Pt4",     level = 125, enemyName = "Jotaro Part 4",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 150 — Kakyoin",        level = 150, enemyName = "Kakyoin",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 175 — Jungle Bandit",  level = 175, enemyName = "Jungle Bandit",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 200 — Sewer Vampire",  level = 200, enemyName = "Sewer Vampire",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("QuestDone"):FireServer() end },
-    { name = "Lvl 275 — Pillerman",      level = 275, enemyName = "Pillerman",
-      take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("Done"):FireServer() end,
-      done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 1  — Bad Gi",          level = 1,   enemyName = "Bad Gi",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 10 — Scary Monster",   level = 10,  enemyName = "Scary Monster",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 20 — Giorno Giovanna", level = 20,  enemyName = "Giorno Giovanna",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 30 — Rker Dummy",      level = 30,  enemyName = "Rker Dummy",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 40 — Yoshikage Kira",  level = 40,  enemyName = "Yoshikage Kira",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 50 — Dio Over Heaven", level = 50,  enemyName = "Dio Over Heaven",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 75 — Angelo",          level = 75,  enemyName = "Angelo",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 100 — Alien",          level = 100, enemyName = "Alien",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 125 — Jotaro Pt4",     level = 125, enemyName = "Jotaro Part 4",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 150 — Kakyoin",        level = 150, enemyName = "Kakyoin",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 175 — Jungle Bandit",  level = 175, enemyName = "Jungle Bandit",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 200 — Sewer Vampire",  level = 200, enemyName = "Sewer Vampire",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 275 — Pillerman",      level = 275, enemyName = "Pillerman",
+	  take = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("Done"):FireServer() end,
+	  done = function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("QuestDone"):FireServer() end },
 }
 
-local function aqGetPlayerLevel()
-    local ok, val = pcall(function() return LocalPlayer.Data.Value end)
-    if ok and type(val) == "number" then return val end
-    for _, obj in ipairs(LocalPlayer:GetDescendants()) do
-        if obj.Name == "Level" and (obj:IsA("IntValue") or obj:IsA("NumberValue")) then
-            return obj.Value
-        end
-    end
-    return 0
+local function AQ_getLevel()
+	local ok, val = pcall(function() return LocalPlayer.Data.Value end)
+	if ok and type(val) == "number" then return val end
+	for _, obj in ipairs(LocalPlayer:GetDescendants()) do
+		if obj.Name == "Level" and (obj:IsA("IntValue") or obj:IsA("NumberValue")) then
+			return obj.Value
+		end
+	end
+	return 0
 end
 
-local function aqGetSmartQuest()
-    local level = aqGetPlayerLevel()
-    local best = nil
-    for _, q in ipairs(AQ_Quests) do
-        if q.level <= level then best = q end
-    end
-    return best
+local function AQ_bestQuest()
+	local lvl = AQ_getLevel()
+	local best = nil
+	for _, q in ipairs(AQ_Quests) do
+		if q.level <= lvl then best = q end
+	end
+	return best
 end
 
-local function aqDoAttacks()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local se = char:FindFirstChild("StandEvents")
-    if not se then return end
-    if AQ.M1 then
-        local r = se:FindFirstChild("M1")
-        if r then pcall(function() r:FireServer() end) end
-        task.wait(AQ.attackDelay)
-    end
-    if AQ.Barrage then
-        local r = se:FindFirstChild("Barrage")
-        if r then pcall(function() r:FireServer(true) end) end
-        task.wait(AQ.attackDelay)
-    end
-    if AQ.Heavy then
-        local r = se:FindFirstChild("Heavy")
-        if r then pcall(function() r:FireServer() end) end
-        task.wait(AQ.attackDelay)
-    end
+local function AQ_setStatus(txt)
+	if AQ_statusLabel then AQ_statusLabel.Text = txt end
 end
 
-local function aqGetEnemies(enemyName)
-    local enemies = {}
-    local living = workspace:FindFirstChild("Living")
-    if not living then return enemies end
-    for _, obj in ipairs(living:GetChildren()) do
-        if obj.Name == enemyName then
-            local hum = obj:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                table.insert(enemies, obj)
-            end
-        end
-    end
-    return enemies
+local function AQ_attack()
+	local char = LocalPlayer.Character
+	if not char then return end
+	local se = char:FindFirstChild("StandEvents")
+	if not se then return end
+	if AQ_M1 then
+		local r = se:FindFirstChild("M1")
+		if r then pcall(function() r:FireServer() end) end
+		task.wait(AQ_delay)
+	end
+	if AQ_Barrage then
+		local r = se:FindFirstChild("Barrage")
+		if r then pcall(function() r:FireServer(true) end) end
+		task.wait(AQ_delay)
+	end
+	if AQ_Heavy then
+		local r = se:FindFirstChild("Heavy")
+		if r then pcall(function() r:FireServer() end) end
+		task.wait(AQ_delay)
+	end
 end
 
-local function aqIsAlive(enemy)
-    local hum = enemy:FindFirstChildOfClass("Humanoid")
-    return hum and hum.Health > 0
+local function AQ_getEnemies(name)
+	local list = {}
+	local living = workspace:FindFirstChild("Living")
+	if not living then return list end
+	for _, obj in ipairs(living:GetChildren()) do
+		if obj.Name == name then
+			local h = obj:FindFirstChildOfClass("Humanoid")
+			if h and h.Health > 0 then table.insert(list, obj) end
+		end
+	end
+	return list
 end
 
-local function aqKillEnemy(enemy)
-    while AQ.running and aqIsAlive(enemy) do
-        pcall(function()
-            local char = LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local eHRP = enemy:FindFirstChild("HumanoidRootPart")
-            if hrp and eHRP then
-                hrp.CFrame = eHRP.CFrame * CFrame.new(0, 0, 5)
-            end
-        end)
-        aqDoAttacks()
-        task.wait(0.05)
-    end
+local function AQ_isAlive(enemy)
+	local h = enemy:FindFirstChildOfClass("Humanoid")
+	return h ~= nil and h.Health > 0
 end
 
--- forward refs set by GUI below
-local aqStatusLabel = nil
-local aqDropBtn     = nil
-local aqFarmThread  = nil
+local function AQ_killEnemy(enemy)
+	while AQ_running and AQ_isAlive(enemy) do
+		pcall(function()
+			local char = LocalPlayer.Character
+			local myHRP   = char and char:FindFirstChild("HumanoidRootPart")
+			local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+			if myHRP and enemyHRP then
+				myHRP.CFrame = enemyHRP.CFrame * CFrame.new(0, 0, 5)
+			end
+		end)
+		AQ_attack()
+		task.wait(0.05)
+	end
+end
 
-local function aqRunQuest(startQuest)
-    local current = startQuest
-    while AQ.running do
-        -- smart mode: switch quest if levelled up
-        if AQ.smartQuest then
-            local smart = aqGetSmartQuest()
-            if smart then
-                current = smart
-                AQ.selectedQuest = smart
-                if aqDropBtn     then aqDropBtn.Text = "▼  " .. smart.name end
-                if aqStatusLabel then aqStatusLabel.Text = "Smart — " .. smart.name end
-            end
-        end
+local function AQ_run(startQuest)
+	local current = startQuest
+	while AQ_running do
+		-- smart: upgrade quest when levelled up
+		if AQ_smart then
+			local best = AQ_bestQuest()
+			if best then
+				current    = best
+				AQ_selected = best
+				if AQ_dropBtn then AQ_dropBtn.Text = "▼  " .. best.name end
+				AQ_setStatus("Smart — " .. best.name)
+			end
+		end
 
-        -- STEP 1: take the quest
-        if aqStatusLabel then aqStatusLabel.Text = "Taking: " .. current.name end
-        pcall(current.take)
-        task.wait(0.5)
-        if not AQ.running then break end
+		-- 1: take quest
+		AQ_setStatus("Taking: " .. current.name)
+		pcall(current.take)
+		task.wait(0.5)
+		if not AQ_running then break end
 
-        -- STEP 2: wait for enemies (up to 15 s)
-        if aqStatusLabel then aqStatusLabel.Text = "Waiting for enemies..." end
-        local waited = 0
-        while AQ.running and #aqGetEnemies(current.enemyName) == 0 and waited < 15 do
-            task.wait(0.5); waited += 0.5
-        end
-        if not AQ.running then break end
+		-- 2: wait for enemies (15 s max)
+		AQ_setStatus("Waiting for enemies...")
+		local waited = 0
+		while AQ_running and #AQ_getEnemies(current.enemyName) == 0 and waited < 15 do
+			task.wait(0.5); waited += 0.5
+		end
+		if not AQ_running then break end
 
-        -- STEP 3: kill all enemies (120 s hard timeout per wave)
-        if aqStatusLabel then aqStatusLabel.Text = "Killing: " .. current.enemyName end
-        local killTimeout = tick() + 120
-        while AQ.running and tick() < killTimeout do
-            local enemies = aqGetEnemies(current.enemyName)
-            if #enemies == 0 then break end
-            aqKillEnemy(enemies[1])
-            task.wait(0.1)
-        end
-        if not AQ.running then break end
+		-- 3: kill every enemy (120 s timeout per wave)
+		AQ_setStatus("Killing: " .. current.enemyName)
+		local killUntil = tick() + 120
+		while AQ_running and tick() < killUntil do
+			local enemies = AQ_getEnemies(current.enemyName)
+			if #enemies == 0 then break end
+			AQ_killEnemy(enemies[1])
+			task.wait(0.05)
+		end
+		if not AQ_running then break end
 
-        -- STEP 4: complete the quest
-        if aqStatusLabel then aqStatusLabel.Text = "Completing quest..." end
-        pcall(current.done)
-        task.wait(1)
-
-        if aqStatusLabel then aqStatusLabel.Text = "Loop done, restarting..." end
-        task.wait(0.5)
-    end
-    if aqStatusLabel then aqStatusLabel.Text = "Stopped." end
+		-- 4: complete quest
+		AQ_setStatus("Completing...")
+		pcall(current.done)
+		task.wait(1)
+		AQ_setStatus("Restarting...")
+		task.wait(0.5)
+	end
+	AQ_setStatus("Stopped.")
 end
 
 -- ──────────────────────────────────────────────
@@ -1768,10 +1767,10 @@ standStatusLabel.Text = "Idle"
 local TQ = THEME.quest
 local questContent = makeContentFrame(bodyArea)
 
--- ── Quest selector ───────────────────────────────────────────
+-- ── 1. Quest selector ────────────────────────────────────────
 makeSection(questContent, "Select Quest", 1, TQ.pri)
 
--- Dropdown button (styled as a makeRow card)
+-- Dropdown button row
 local aqDropRow = Instance.new("Frame")
 aqDropRow.Size             = UDim2.new(1, 0, 0, 40)
 aqDropRow.BackgroundColor3 = CARD
@@ -1780,28 +1779,27 @@ aqDropRow.LayoutOrder      = 2
 aqDropRow.Parent           = questContent
 corner(10, aqDropRow)
 newStroke(TQ.pri, 0.9, aqDropRow)
-local aqDropStripe = Instance.new("Frame")
-aqDropStripe.Size            = UDim2.new(0, 3, 0.55, 0)
-aqDropStripe.Position        = UDim2.new(0, 0, 0.225, 0)
-aqDropStripe.BackgroundColor3= TQ.pri
-aqDropStripe.BorderSizePixel = 0
-aqDropStripe.Parent          = aqDropRow
-corner(3, aqDropStripe)
+local aqStripe = Instance.new("Frame")
+aqStripe.Size            = UDim2.new(0, 3, 0.55, 0)
+aqStripe.Position        = UDim2.new(0, 0, 0.225, 0)
+aqStripe.BackgroundColor3= TQ.pri
+aqStripe.BorderSizePixel = 0
+aqStripe.Parent          = aqDropRow
+corner(3, aqStripe)
 
-aqDropBtn = Instance.new("TextButton")
-aqDropBtn.Size                  = UDim2.new(1, 0, 1, 0)
-aqDropBtn.BackgroundTransparency= 1
-aqDropBtn.Text                  = "▼  Choose a Quest..."
-aqDropBtn.Font                  = Enum.Font.Gotham
-aqDropBtn.TextSize              = 12
-aqDropBtn.TextColor3            = MUTED
-aqDropBtn.TextXAlignment        = Enum.TextXAlignment.Left
-aqDropBtn.BorderSizePixel       = 0
-aqDropBtn.Parent                = aqDropRow
-local aqDropPad = Instance.new("UIPadding")
-aqDropPad.PaddingLeft = UDim.new(0, 14); aqDropPad.Parent = aqDropBtn
+AQ_dropBtn = Instance.new("TextButton")
+AQ_dropBtn.Size                  = UDim2.new(1, -14, 1, 0)
+AQ_dropBtn.Position              = UDim2.new(0, 14, 0, 0)
+AQ_dropBtn.BackgroundTransparency= 1
+AQ_dropBtn.Text                  = "▼  Choose a Quest..."
+AQ_dropBtn.Font                  = Enum.Font.Gotham
+AQ_dropBtn.TextSize              = 12
+AQ_dropBtn.TextColor3            = MUTED
+AQ_dropBtn.TextXAlignment        = Enum.TextXAlignment.Left
+AQ_dropBtn.BorderSizePixel       = 0
+AQ_dropBtn.Parent                = aqDropRow
 
--- Scrolling dropdown list (hidden until tapped)
+-- Dropdown list
 local aqDropList = Instance.new("ScrollingFrame")
 aqDropList.Size                 = UDim2.new(1, 0, 0, 0)
 aqDropList.BackgroundColor3     = INPUTBG
@@ -1814,137 +1812,142 @@ aqDropList.LayoutOrder          = 3
 aqDropList.Parent               = questContent
 corner(8, aqDropList)
 newStroke(TQ.pri, 0.7, aqDropList)
-local aqDropLayout = Instance.new("UIListLayout")
-aqDropLayout.SortOrder = Enum.SortOrder.LayoutOrder
-aqDropLayout.Parent    = aqDropList
+local aqListLayout = Instance.new("UIListLayout")
+aqListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+aqListLayout.Parent    = aqDropList
 
 for i, quest in ipairs(AQ_Quests) do
-    local item = Instance.new("TextButton")
-    item.Size                   = UDim2.new(1, 0, 0, 30)
-    item.BackgroundColor3       = CARD
-    item.BackgroundTransparency = 0.4
-    item.Text                   = "  " .. quest.name
-    item.TextColor3             = MUTED
-    item.Font                   = Enum.Font.Gotham
-    item.TextSize               = 11
-    item.TextXAlignment         = Enum.TextXAlignment.Left
-    item.BorderSizePixel        = 0
-    item.LayoutOrder            = i
-    item.ZIndex                 = 10
-    item.Parent                 = aqDropList
-    item.MouseEnter:Connect(function() tw(item, 0.1, {BackgroundTransparency = 0}) end)
-    item.MouseLeave:Connect(function() tw(item, 0.1, {BackgroundTransparency = 0.4}) end)
-    item.MouseButton1Click:Connect(function()
-        AQ.selectedQuest = quest
-        aqDropBtn.Text   = "▼  " .. quest.name
-        tw(aqDropList, 0.15, {Size = UDim2.new(1, 0, 0, 0)})
-        task.wait(0.16); aqDropList.Visible = false
-    end)
+	local item = Instance.new("TextButton")
+	item.Size                   = UDim2.new(1, 0, 0, 30)
+	item.BackgroundColor3       = CARD
+	item.BackgroundTransparency = 0.4
+	item.Text                   = "  " .. quest.name
+	item.TextColor3             = MUTED
+	item.Font                   = Enum.Font.Gotham
+	item.TextSize               = 11
+	item.TextXAlignment         = Enum.TextXAlignment.Left
+	item.BorderSizePixel        = 0
+	item.LayoutOrder            = i
+	item.ZIndex                 = 10
+	item.Parent                 = aqDropList
+	item.MouseEnter:Connect(function() tw(item, 0.1, {BackgroundTransparency = 0}) end)
+	item.MouseLeave:Connect(function() tw(item, 0.1, {BackgroundTransparency = 0.4}) end)
+	item.MouseButton1Click:Connect(function()
+		AQ_selected = quest
+		AQ_dropBtn.Text = "▼  " .. quest.name
+		tw(aqDropList, 0.15, {Size = UDim2.new(1, 0, 0, 0)})
+		task.wait(0.16); aqDropList.Visible = false
+	end)
 end
 aqDropList.CanvasSize = UDim2.new(0, 0, 0, #AQ_Quests * 30)
 
 local aqDropOpen = false
-aqDropBtn.MouseButton1Click:Connect(function()
-    aqDropOpen = not aqDropOpen
-    aqDropList.Visible = true
-    local h = aqDropOpen and math.min(#AQ_Quests * 30, 150) or 0
-    tw(aqDropList, 0.18, {Size = UDim2.new(1, 0, 0, h)})
-    if not aqDropOpen then task.wait(0.19); aqDropList.Visible = false end
+AQ_dropBtn.MouseButton1Click:Connect(function()
+	aqDropOpen = not aqDropOpen
+	aqDropList.Visible = true
+	local h = aqDropOpen and math.min(#AQ_Quests * 30, 150) or 0
+	tw(aqDropList, 0.18, {Size = UDim2.new(1, 0, 0, h)})
+	if not aqDropOpen then task.wait(0.19); aqDropList.Visible = false end
 end)
 
--- ── Attack config ─────────────────────────────────────────────
+-- ── 2. Attack config ──────────────────────────────────────────
 makeSection(questContent, "Attack Config", 4, TQ.pri)
 
-local aqAtkDefs = {
-    { key = "M1",      label = "M1 Punch"   },
-    { key = "Barrage", label = "Barrage"     },
-    { key = "Heavy",   label = "Heavy Punch" },
-}
-local aqOrder = 5
-for _, atk in ipairs(aqAtkDefs) do
-    local atkRow   = makeRow(questContent, atk.label .. ":", aqOrder, TQ.pri)
-    local atkBadge = makeStateBadge(atkRow)
-    local isOn     = AQ[atk.key]
-    atkBadge.Text       = isOn and "ON" or "OFF"
-    atkBadge.TextColor3 = isOn and TQ.good or DIM
-    local atkBtn, setAtkVis = makeToggle(atkRow, isOn, TQ.pri)
-    atkBtn.MouseButton1Click:Connect(function()
-        AQ[atk.key] = not AQ[atk.key]
-        local on = AQ[atk.key]
-        setAtkVis(on)
-        atkBadge.Text       = on and "ON" or "OFF"
-        atkBadge.TextColor3 = on and TQ.good or DIM
-    end)
-    aqOrder += 1
-end
-
--- ── Smart Quest ───────────────────────────────────────────────
-makeSection(questContent, "Smart Quest", aqOrder, TQ.pri); aqOrder += 1
-
-local smartRow   = makeRow(questContent, "Auto-pick by level:", aqOrder, TQ.pri); aqOrder += 1
-local smartBadge = makeStateBadge(smartRow)
-local smartBtn, setSmartVis = makeToggle(smartRow, false, TQ.pri)
-smartBtn.MouseButton1Click:Connect(function()
-    AQ.smartQuest = not AQ.smartQuest
-    local on = AQ.smartQuest
-    setSmartVis(on)
-    smartBadge.Text       = on and "ON" or "OFF"
-    smartBadge.TextColor3 = on and TQ.good or DIM
-    if on then
-        local smart = aqGetSmartQuest()
-        if smart then
-            AQ.selectedQuest = smart
-            aqDropBtn.Text   = "▼  " .. smart.name
-        end
-    end
+local aqM1Row    = makeRow(questContent, "M1 Punch:", 5, TQ.pri)
+local aqM1Badge  = makeStateBadge(aqM1Row)
+aqM1Badge.Text = "ON"; aqM1Badge.TextColor3 = TQ.good
+local aqM1Btn, aqM1Vis = makeToggle(aqM1Row, true, TQ.pri)
+aqM1Btn.MouseButton1Click:Connect(function()
+	AQ_M1 = not AQ_M1
+	aqM1Vis(AQ_M1)
+	aqM1Badge.Text = AQ_M1 and "ON" or "OFF"
+	aqM1Badge.TextColor3 = AQ_M1 and TQ.good or DIM
 end)
 
--- ── Start / Stop ──────────────────────────────────────────────
-makeSection(questContent, "Auto Quest", aqOrder, TQ.pri); aqOrder += 1
-
-local questRow        = makeRow(questContent, "Auto Quest:", aqOrder, TQ.pri); aqOrder += 1
-local questStateLabel = makeStateBadge(questRow)
-local questTogBtn, setQuestVis = makeToggle(questRow, false, TQ.pri)
-
-questTogBtn.MouseButton1Click:Connect(function()
-    if AQ.running then
-        -- stop
-        AQ.running = false
-        if aqFarmThread then task.cancel(aqFarmThread); aqFarmThread = nil end
-        setQuestVis(false)
-        questStateLabel.Text       = "OFF"
-        questStateLabel.TextColor3 = DIM
-    else
-        -- validate
-        if AQ.smartQuest then
-            local smart = aqGetSmartQuest()
-            if smart then
-                AQ.selectedQuest = smart
-                aqDropBtn.Text   = "▼  " .. smart.name
-            else
-                if aqStatusLabel then aqStatusLabel.Text = "⚠  Level too low for any quest!" end
-                return
-            end
-        else
-            if not AQ.selectedQuest then
-                if aqStatusLabel then aqStatusLabel.Text = "⚠  Select a quest first!" end
-                return
-            end
-        end
-        -- start
-        AQ.running = true
-        setQuestVis(true)
-        questStateLabel.Text       = "ON"
-        questStateLabel.TextColor3 = TQ.good
-        local label = AQ.smartQuest and "Smart — " or ""
-        if aqStatusLabel then aqStatusLabel.Text = "Farming: " .. label .. AQ.selectedQuest.name end
-        aqFarmThread = task.spawn(function() aqRunQuest(AQ.selectedQuest) end)
-    end
+local aqBarRow   = makeRow(questContent, "Barrage:", 6, TQ.pri)
+local aqBarBadge = makeStateBadge(aqBarRow)
+aqBarBadge.Text = "ON"; aqBarBadge.TextColor3 = TQ.good
+local aqBarBtn, aqBarVis = makeToggle(aqBarRow, true, TQ.pri)
+aqBarBtn.MouseButton1Click:Connect(function()
+	AQ_Barrage = not AQ_Barrage
+	aqBarVis(AQ_Barrage)
+	aqBarBadge.Text = AQ_Barrage and "ON" or "OFF"
+	aqBarBadge.TextColor3 = AQ_Barrage and TQ.good or DIM
 end)
 
-aqStatusLabel, _ = makeStatusPill(questContent, aqOrder, TQ.pri)
-aqStatusLabel.Text = "Idle"
-questStatusLabel   = aqStatusLabel
+local aqHvyRow   = makeRow(questContent, "Heavy Punch:", 7, TQ.pri)
+local aqHvyBadge = makeStateBadge(aqHvyRow)
+aqHvyBadge.Text = "OFF"
+local aqHvyBtn, aqHvyVis = makeToggle(aqHvyRow, false, TQ.pri)
+aqHvyBtn.MouseButton1Click:Connect(function()
+	AQ_Heavy = not AQ_Heavy
+	aqHvyVis(AQ_Heavy)
+	aqHvyBadge.Text = AQ_Heavy and "ON" or "OFF"
+	aqHvyBadge.TextColor3 = AQ_Heavy and TQ.good or DIM
+end)
+
+-- ── 3. Smart Quest ────────────────────────────────────────────
+makeSection(questContent, "Smart Quest", 8, TQ.pri)
+
+local aqSmartRow   = makeRow(questContent, "Auto-pick by level:", 9, TQ.pri)
+local aqSmartBadge = makeStateBadge(aqSmartRow)
+local aqSmartBtn, aqSmartVis = makeToggle(aqSmartRow, false, TQ.pri)
+aqSmartBtn.MouseButton1Click:Connect(function()
+	AQ_smart = not AQ_smart
+	aqSmartVis(AQ_smart)
+	aqSmartBadge.Text = AQ_smart and "ON" or "OFF"
+	aqSmartBadge.TextColor3 = AQ_smart and TQ.good or DIM
+	if AQ_smart then
+		local best = AQ_bestQuest()
+		if best then
+			AQ_selected = best
+			AQ_dropBtn.Text = "▼  " .. best.name
+		end
+	end
+end)
+
+-- ── 4. Start / Stop ───────────────────────────────────────────
+makeSection(questContent, "Auto Quest", 10, TQ.pri)
+
+local aqTogRow      = makeRow(questContent, "Auto Quest:", 11, TQ.pri)
+local aqStateBadge  = makeStateBadge(aqTogRow)
+local aqTogBtn, aqTogVis = makeToggle(aqTogRow, false, TQ.pri)
+
+aqTogBtn.MouseButton1Click:Connect(function()
+	if AQ_running then
+		AQ_running = false
+		if AQ_farmThread then task.cancel(AQ_farmThread); AQ_farmThread = nil end
+		aqTogVis(false)
+		aqStateBadge.Text      = "OFF"
+		aqStateBadge.TextColor3= DIM
+	else
+		if AQ_smart then
+			local best = AQ_bestQuest()
+			if best then
+				AQ_selected = best
+				AQ_dropBtn.Text = "▼  " .. best.name
+			else
+				AQ_setStatus("⚠  Level too low for any quest!")
+				return
+			end
+		else
+			if not AQ_selected then
+				AQ_setStatus("⚠  Select a quest first!")
+				return
+			end
+		end
+		AQ_running = true
+		aqTogVis(true)
+		aqStateBadge.Text      = "ON"
+		aqStateBadge.TextColor3= TQ.good
+		AQ_setStatus("Farming: " .. AQ_selected.name)
+		AQ_farmThread = task.spawn(function() AQ_run(AQ_selected) end)
+	end
+end)
+
+AQ_statusLabel, _ = makeStatusPill(questContent, 12, TQ.pri)
+AQ_statusLabel.Text = "Idle"
+questStatusLabel = AQ_statusLabel
 local function switchTab(tab)
     spamContent.Visible    = (tab == "spam")
     webhookContent.Visible = (tab == "webhook")
@@ -2002,7 +2005,7 @@ closeBtn.MouseButton1Click:Connect(function()
     spamActive = false; goActive = false; autoFireActive = false
     autoSummonActive = false; webhookActive = false; standRollActive = false
     questActive = false; autoFireNPCActive = false; autoDiavoloActive = false
-    AQ.running = false; if aqFarmThread then task.cancel(aqFarmThread); aqFarmThread = nil end
+    AQ_running = false; if AQ_farmThread then task.cancel(AQ_farmThread); AQ_farmThread = nil end
     if summonDeathConn then summonDeathConn:Disconnect() end
     tw(frame,     0.18, {BackgroundTransparency = 1})
     tw(glowFrame, 0.18, {BackgroundTransparency = 1})
