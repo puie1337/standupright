@@ -1777,35 +1777,32 @@ standStatusLabel = makeStatusPill(standContent, 11, TR.pri)
 standStatusLabel.Text = "Idle"
 
 -- ════════════════════════════════════════════════════════════
---  📜  QUESTS TAB  —  Neon Green  (Auto Quest)
+--  📜  QUESTS TAB  —  Neon Green
 -- ════════════════════════════════════════════════════════════
 local TQ = THEME.quest
 local questContent = makeContentFrame(bodyArea)
 
-makeSection(questContent, "Auto Quest — Select & Farm", 1, TQ.pri)
+makeSection(questContent, "Quest Selector", 1, TQ.pri)
 
--- ── Quest Selector ──────────────────────────────────────────
-local aqSelectorFrame = Instance.new("Frame")
-aqSelectorFrame.Size             = UDim2.new(1, 0, 0, 0)
-aqSelectorFrame.AutomaticSize    = Enum.AutomaticSize.Y
-aqSelectorFrame.BackgroundTransparency = 1
-aqSelectorFrame.LayoutOrder      = 2
-aqSelectorFrame.Parent           = questContent
+-- Quest dropdown using a row-style card (matches sur.lua style)
+local questCardFrame = Instance.new("Frame")
+questCardFrame.Size             = UDim2.new(1, 0, 0, 0)
+questCardFrame.AutomaticSize    = Enum.AutomaticSize.Y
+questCardFrame.BackgroundColor3 = CARD
+questCardFrame.BorderSizePixel  = 0
+questCardFrame.LayoutOrder      = 2
+questCardFrame.Parent           = questContent
+corner(8, questCardFrame)
+newStroke(TQ.pri, 0.8, questCardFrame)
+local questCardPad = Instance.new("UIPadding")
+questCardPad.PaddingTop    = UDim.new(0, 6)
+questCardPad.PaddingBottom = UDim.new(0, 6)
+questCardPad.PaddingLeft   = UDim.new(0, 8)
+questCardPad.PaddingRight  = UDim.new(0, 8)
+questCardPad.Parent        = questCardFrame
 
-local aqDropLabel = Instance.new("TextLabel")
-aqDropLabel.Size               = UDim2.new(1, 0, 0, 16)
-aqDropLabel.BackgroundTransparency = 1
-aqDropLabel.Text               = "SELECT QUEST"
-aqDropLabel.Font               = Enum.Font.GothamBold
-aqDropLabel.TextSize           = 10
-aqDropLabel.TextColor3         = TQ.pri
-aqDropLabel.TextXAlignment     = Enum.TextXAlignment.Left
-aqDropLabel.Parent             = aqSelectorFrame
-
--- Dropdown button
 aqDropBtn = Instance.new("TextButton")
-aqDropBtn.Size               = UDim2.new(1, 0, 0, 32)
-aqDropBtn.Position           = UDim2.new(0, 0, 0, 20)
+aqDropBtn.Size               = UDim2.new(1, 0, 0, 26)
 aqDropBtn.BackgroundColor3   = CARD
 aqDropBtn.Text               = "▼  Choose a Quest..."
 aqDropBtn.TextColor3         = TQ.sub
@@ -1813,34 +1810,32 @@ aqDropBtn.Font               = Enum.Font.Gotham
 aqDropBtn.TextSize           = 11
 aqDropBtn.TextXAlignment     = Enum.TextXAlignment.Left
 aqDropBtn.BorderSizePixel    = 0
-aqDropBtn.Parent             = aqSelectorFrame
+aqDropBtn.AutomaticSize      = Enum.AutomaticSize.None
+aqDropBtn.Parent             = questCardFrame
 corner(6, aqDropBtn)
 newStroke(TQ.pri, 0.6, aqDropBtn)
 
 local aqDropList = Instance.new("ScrollingFrame")
-aqDropList.Size                  = UDim2.new(1, 0, 0, 0)
-aqDropList.Position              = UDim2.new(0, 0, 0, 54)
-aqDropList.BackgroundColor3      = CARD
-aqDropList.BorderSizePixel       = 0
-aqDropList.ScrollBarThickness    = 3
-aqDropList.ScrollBarImageColor3  = TQ.pri
-aqDropList.Visible               = false
-aqDropList.ClipsDescendants      = true
-aqDropList.ZIndex                = 10
-aqDropList.Parent                = aqSelectorFrame
+aqDropList.Size                 = UDim2.new(1, 0, 0, 0)
+aqDropList.BackgroundColor3     = CARD
+aqDropList.BorderSizePixel      = 0
+aqDropList.ScrollBarThickness   = 3
+aqDropList.ScrollBarImageColor3 = TQ.pri
+aqDropList.Visible              = false
+aqDropList.ClipsDescendants     = true
+aqDropList.Parent               = questCardFrame
 corner(6, aqDropList)
-newStroke(TQ.pri, 0.7, aqDropList)
+newStroke(TQ.pri, 0.6, aqDropList)
 
 local aqDropLayout = Instance.new("UIListLayout")
 aqDropLayout.SortOrder = Enum.SortOrder.LayoutOrder
 aqDropLayout.Parent    = aqDropList
 
--- Populate dropdown
 for i, quest in ipairs(Quests) do
     local item = Instance.new("TextButton")
-    item.Size               = UDim2.new(1, 0, 0, 28)
+    item.Size               = UDim2.new(1, 0, 0, 26)
     item.BackgroundColor3   = CARD
-    item.BackgroundTransparency = 0.3
+    item.BackgroundTransparency = 0.4
     item.Text               = "  " .. quest.name
     item.TextColor3         = TQ.sub
     item.Font               = Enum.Font.Gotham
@@ -1850,9 +1845,8 @@ for i, quest in ipairs(Quests) do
     item.LayoutOrder        = i
     item.ZIndex             = 11
     item.Parent             = aqDropList
-
-    item.MouseEnter:Connect(function()  item.BackgroundTransparency = 0 end)
-    item.MouseLeave:Connect(function()  item.BackgroundTransparency = 0.3 end)
+    item.MouseEnter:Connect(function() item.BackgroundTransparency = 0 end)
+    item.MouseLeave:Connect(function() item.BackgroundTransparency = 0.4 end)
     item.MouseButton1Click:Connect(function()
         AQSettings.selectedQuest = quest
         aqDropBtn.Text = "▼  " .. quest.name
@@ -1860,32 +1854,31 @@ for i, quest in ipairs(Quests) do
         task.wait(0.16); aqDropList.Visible = false
     end)
 end
-aqDropList.CanvasSize = UDim2.new(0, 0, 0, #Quests * 28)
+aqDropList.CanvasSize = UDim2.new(0, 0, 0, #Quests * 26)
 
 local aqDropOpen = false
 aqDropBtn.MouseButton1Click:Connect(function()
     aqDropOpen = not aqDropOpen
     aqDropList.Visible = true
-    local targetH = aqDropOpen and math.min(#Quests * 28, 140) or 0
+    local targetH = aqDropOpen and math.min(#Quests * 26, 130) or 0
     TweenService:Create(aqDropList, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
         Size = UDim2.new(1, 0, 0, targetH)
     }):Play()
     if not aqDropOpen then task.wait(0.19); aqDropList.Visible = false end
 end)
 
--- ── Attack Config ────────────────────────────────────────────
+-- Attack config rows
 makeSection(questContent, "Attack Config", 3, TQ.pri)
 
 local aqAtkDefs = {
-    { key = "M1",      label = "M1 Punch",   icon = "👊" },
-    { key = "Barrage", label = "Barrage",     icon = "⚡" },
-    { key = "Heavy",   label = "Heavy Punch", icon = "💥" },
+    { key = "M1",      label = "M1 Punch"   },
+    { key = "Barrage", label = "Barrage"     },
+    { key = "Heavy",   label = "Heavy Punch" },
 }
-
 for _, atk in ipairs(aqAtkDefs) do
-    local atkRow = makeRow(questContent, atk.icon .. "  " .. atk.label, 4, TQ.pri)
+    local atkRow   = makeRow(questContent, atk.label .. ":", 4, TQ.pri)
     local atkBadge = makeStateBadge(atkRow)
-    local on0 = AQSettings.attackEnabled[atk.key]
+    local on0      = AQSettings.attackEnabled[atk.key]
     atkBadge.Text       = on0 and "ON" or "OFF"
     atkBadge.TextColor3 = on0 and TQ.good or DIM
     local atkTogBtn, setAtkVis = makeToggle(atkRow, on0, TQ.pri)
@@ -1898,10 +1891,10 @@ for _, atk in ipairs(aqAtkDefs) do
     end)
 end
 
--- ── Smart Quest ──────────────────────────────────────────────
-makeSection(questContent, "Smart Auto Quest", 5, TQ.pri)
+-- Smart Quest row
+makeSection(questContent, "Smart Quest", 5, TQ.pri)
 
-local smartRow = makeRow(questContent, "🧠  Auto-pick by level", 6, TQ.pri)
+local smartRow  = makeRow(questContent, "Auto-pick by level:", 6, TQ.pri)
 local smartBadge = makeStateBadge(smartRow)
 local smartTogBtn, setSmartVis = makeToggle(smartRow, false, TQ.pri)
 smartTogBtn.MouseButton1Click:Connect(function()
@@ -1919,39 +1912,21 @@ smartTogBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- ── Start / Stop ─────────────────────────────────────────────
-makeSection(questContent, "Farming", 7, TQ.pri)
+-- Start / Stop row
+makeSection(questContent, "Auto Quest", 7, TQ.pri)
 
-local aqStartRow = Instance.new("Frame")
-aqStartRow.Size               = UDim2.new(1, 0, 0, 36)
-aqStartRow.BackgroundColor3   = TQ.pri
-aqStartRow.BorderSizePixel    = 0
-aqStartRow.LayoutOrder        = 8
-aqStartRow.Parent             = questContent
-corner(7, aqStartRow)
+local questRow      = makeRow(questContent, "Auto Quest:", 8, TQ.pri)
+local questStateLabel = makeStateBadge(questRow)
+local questTogBtn, setQuestVis = makeToggle(questRow, false, TQ.pri)
 
-local aqStartBtn = Instance.new("TextButton")
-aqStartBtn.Size               = UDim2.new(1, 0, 1, 0)
-aqStartBtn.BackgroundTransparency = 1
-aqStartBtn.Text               = "▶  START FARMING"
-aqStartBtn.TextColor3         = Color3.new(1, 1, 1)
-aqStartBtn.Font               = Enum.Font.GothamBold
-aqStartBtn.TextSize           = 13
-aqStartBtn.BorderSizePixel    = 0
-aqStartBtn.Parent             = aqStartRow
-
-aqStatusLabel = makeStatusPill(questContent, 9, TQ.pri)
-aqStatusLabel.Text = "Idle"
-questStatusLabel   = aqStatusLabel   -- keep legacy reference alive
-
-aqStartBtn.MouseButton1Click:Connect(function()
+questTogBtn.MouseButton1Click:Connect(function()
     if AQSettings.running then
         AQSettings.running = false
         if aqFarmThread then task.cancel(aqFarmThread); aqFarmThread = nil end
-        aqStartBtn.Text = "▶  START FARMING"
-        TweenService:Create(aqStartRow, TweenInfo.new(0.2), { BackgroundColor3 = TQ.pri }):Play()
-        aqStatusLabel.Text      = "Idle"
-        aqStatusLabel.TextColor3= TQ.sub
+        setQuestVis(false)
+        questStateLabel.Text       = "OFF"
+        questStateLabel.TextColor3 = DIM
+        if questStatusLabel then questStatusLabel.Text = "Stopped." end
     else
         if AQSettings.smartQuest then
             local smart = aqGetSmartQuest()
@@ -1959,30 +1934,30 @@ aqStartBtn.MouseButton1Click:Connect(function()
                 AQSettings.selectedQuest = smart
                 aqDropBtn.Text = "▼  " .. smart.name
             else
-                aqStatusLabel.Text      = "⚠  Level too low for any quest!"
-                aqStatusLabel.TextColor3= TQ.bad or Color3.fromRGB(255, 80, 80)
+                if questStatusLabel then questStatusLabel.Text = "⚠ Level too low!" end
                 return
             end
         else
             if not AQSettings.selectedQuest then
-                aqStatusLabel.Text      = "⚠  Select a quest first!"
-                aqStatusLabel.TextColor3= TQ.bad or Color3.fromRGB(255, 80, 80)
+                if questStatusLabel then questStatusLabel.Text = "⚠ Select a quest first!" end
                 return
             end
         end
-
         AQSettings.running = true
-        aqStartBtn.Text = "⏹  STOP FARMING"
-        TweenService:Create(aqStartRow, TweenInfo.new(0.2), { BackgroundColor3 = Color3.fromRGB(160, 30, 80) }):Play()
-        local label = AQSettings.smartQuest and "Smart — " or "Farming — "
-        aqStatusLabel.Text      = "Status: " .. label .. AQSettings.selectedQuest.name
-        aqStatusLabel.TextColor3= TQ.good
-
+        setQuestVis(true)
+        questStateLabel.Text       = "ON"
+        questStateLabel.TextColor3 = TQ.good
+        local label = AQSettings.smartQuest and "Smart — " or ""
+        if questStatusLabel then questStatusLabel.Text = "Farming: " .. label .. AQSettings.selectedQuest.name end
         aqFarmThread = task.spawn(function()
             aqRunQuest(AQSettings.selectedQuest)
         end)
     end
 end)
+
+questStatusLabel = makeStatusPill(questContent, 9, TQ.pri)
+questStatusLabel.Text = "Idle"
+aqStatusLabel = questStatusLabel
 local function switchTab(tab)
     spamContent.Visible    = (tab == "spam")
     webhookContent.Visible = (tab == "webhook")
