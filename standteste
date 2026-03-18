@@ -36,14 +36,22 @@ local TWEEN_TIME   = 0.3
 -- BOSS SPAMMER STATE
 -- ──────────────────────────────────────────────
 local useTween         = true
-local goActive         = false   -- Go Behind DIO Boss
-local goScaryActive    = false   -- Go Behind Scary Face Boss
+local goActive         = false
 local spamActive       = false
 local autoFireActive   = false
 local autoFireNPCActive = false
 local autoDiavoloActive = false
 local autoSummonActive = false
 local questActive      = false
+
+-- ──────────────────────────────────────────────
+-- BOSS KILL TIMER STATE
+-- ──────────────────────────────────────────────
+local killTimerActive    = false       -- toggled from GUI
+local killTimerDuration  = 60          -- seconds before self-reset
+local killTimerStart     = nil         -- tick() when boss was first seen alive
+local killTimerLabel     = nil         -- status pill label (assigned after GUI)
+local lastBossHP         = nil         -- tracks whether boss HP changed (optional guard)
 
 -- ──────────────────────────────────────────────
 -- WEBHOOK STATE
@@ -117,34 +125,6 @@ end
 -- ──────────────────────────────────────────────
 -- BOSS HELPERS
 -- ──────────────────────────────────────────────
--- Returns the DIO Boss model (identified by the DioHair child)
-local function getDioBoss()
-	local living = game.workspace:FindFirstChild("Living")
-	if not living then return nil end
-	for _, model in ipairs(living:GetChildren()) do
-		if model.Name == "Boss" and model:FindFirstChild("DioHair") then
-			return model
-		end
-	end
-	return nil
-end
-
--- Returns the "scary face" Boss model (identified by Head["scary face"])
-local function getScaryFaceBoss()
-	local living = game.workspace:FindFirstChild("Living")
-	if not living then return nil end
-	for _, model in ipairs(living:GetChildren()) do
-		if model.Name == "Boss" then
-			local head = model:FindFirstChild("Head")
-			if head and head:FindFirstChild("scary face") then
-				return model
-			end
-		end
-	end
-	return nil
-end
-
--- Generic fallback: returns the first Boss model found (used by the status heartbeat)
 local function getModel()
 	local living = game.workspace:FindFirstChild("Living")
 	if not living then return nil end
@@ -178,8 +158,8 @@ end
 -- ──────────────────────────────────────────────
 local activeTween = nil
 
-local function moveBehindTarget(modelGetter)
-	local model = modelGetter()
+local function moveBehindBoss()
+	local model = getModel()
 	if not model then return end
 	local targetCF = getBehindCFrame(model)
 	if not targetCF then return end
@@ -266,11 +246,13 @@ task.spawn(function()
 	end
 end)
 
--- GO-BEHIND LOOP — DIO Boss
+-- ──────────────────────────────────────────────
+-- GO-BEHIND LOOP
+-- ──────────────────────────────────────────────
 task.spawn(function()
 	while true do
 		if goActive then
-			moveBehindTarget(getDioBoss)
+			moveBehindBoss()
 			task.wait(useTween and TWEEN_TIME or 0.05)
 		else
 			task.wait(0.05)
@@ -278,14 +260,69 @@ task.spawn(function()
 	end
 end)
 
--- GO-BEHIND LOOP — Scary Face Boss
+-- ──────────────────────────────────────────────
+-- BOSS KILL TIMER LOOP
+-- ──────────────────────────────────────────────
 task.spawn(function()
 	while true do
-		if goScaryActive then
-			moveBehindTarget(getScaryFaceBoss)
-			task.wait(useTween and TWEEN_TIME or 0.05)
+		if killTimerActive then
+			local model = getModel()
+			local hum   = getModelHumanoid(model)
+
+			if hum and hum.Health > 0 then
+				-- Boss is alive — start/keep the timer running
+				if killTimerStart == nil then
+					killTimerStart = tick()
+				end
+
+				local elapsed  = tick() - killTimerStart
+				local remaining = math.max(0, killTimerDuration - math.floor(elapsed))
+
+				-- Update status label
+				if killTimerLabel then
+					killTimerLabel.Text      = ("Kill timer: %ds left"):format(remaining)
+					killTimerLabel.TextColor3 = remaining <= 10
+						and Color3.fromRGB(255, 75, 75)
+						or  Color3.fromRGB(255, 165, 50)
+				end
+
+				-- Time's up — reset self
+				if elapsed >= killTimerDuration then
+					killTimerStart = nil   -- reset so it re-arms next boss spawn
+					if killTimerLabel then
+						killTimerLabel.Text      = "Timeout! Resetting..."
+						killTimerLabel.TextColor3 = Color3.fromRGB(255, 75, 75)
+					end
+					pcall(function()
+						local char = getCharacter()
+						if char then
+							local hum2 = char:FindFirstChildWhichIsA("Humanoid")
+							if hum2 then
+								hum2.Health = 0
+							end
+						end
+					end)
+					task.wait(3)   -- brief pause before re-arming
+				end
+			else
+				-- Boss is dead or missing — reset the timer
+				if killTimerStart ~= nil then
+					killTimerStart = nil
+				end
+				if killTimerLabel then
+					killTimerLabel.Text      = "Kill timer: waiting for boss"
+					killTimerLabel.TextColor3 = Color3.fromRGB(100, 90, 145)
+				end
+			end
+			task.wait(0.5)
 		else
-			task.wait(0.05)
+			-- Timer is off — clear display if label exists
+			if killTimerLabel then
+				killTimerLabel.Text      = "Kill timer: OFF"
+				killTimerLabel.TextColor3 = Color3.fromRGB(65, 58, 100)
+			end
+			killTimerStart = nil
+			task.wait(0.5)
 		end
 	end
 end)
@@ -657,35 +694,15 @@ local function sendStandAlert(foundAttribute)
 	end)
 end
 
--- Attributes that trigger a stop ONLY when the stand is Dio's The World
-local dioExtraStopList = {"Daemon", "Godly", "Tragic"}
-
 local function checkStopList()
-	local attrLbl = getAttrLabel()
-	if not attrLbl then return false end
-	local currentText = attrLbl.ContentText or attrLbl.Text or ""
-
-	-- Check the regular stop-list (applies to ALL stands)
+	local lbl = getAttrLabel()
+	if not lbl then return false end
+	local currentText = lbl.ContentText or lbl.Text or ""
 	for _, word in pairs(standStopList) do
 		if string.find(currentText, word) then
 			return true, currentText
 		end
 	end
-
-	-- Extra check: if the stand is "Dio's The World", also stop on Daemon / Godly / Tragic
-	local nameLbl = getStandNameLabel()
-	if nameLbl then
-		local nameText = nameLbl.ContentText or nameLbl.Text or ""
-		local isDiosWorld = string.find(nameText, "Dio's The World") ~= nil
-		if isDiosWorld then
-			for _, word in pairs(dioExtraStopList) do
-				if string.find(currentText, word) then
-					return true, currentText
-				end
-			end
-		end
-	end
-
 	return false, currentText
 end
 
@@ -1296,26 +1313,13 @@ tweenBtn.MouseButton1Click:Connect(function()
     modeLabel.TextColor3= useTween and TS.sub or Color3.fromRGB(255, 170, 60)
 end)
 
-local row2 = makeRow(spamContent, "Go Behind DIO Boss:", 2, TS.pri)
+local row2 = makeRow(spamContent, "Go Behind Boss:", 2, TS.pri)
 local goToggleBtn, setGoVis = makeToggle(row2, false, TS.pri)
 local goLabel = makeStateBadge(row2)
 goToggleBtn.MouseButton1Click:Connect(function()
     goActive = not goActive; setGoVis(goActive)
-    -- turning on DIO boss disables the other to avoid fighting over tween
-    if goActive then goScaryActive = false; if setGoScaryVis then setGoScaryVis(false) end; goScaryLabel.Text = "OFF"; goScaryLabel.TextColor3 = DIM end
     goLabel.Text      = goActive and "ON" or "OFF"
     goLabel.TextColor3= goActive and TS.good or DIM
-end)
-
-local row2b = makeRow(spamContent, "Go Behind Scary Boss:", 2, TS.pri)
-local goScaryToggleBtn, setGoScaryVis = makeToggle(row2b, false, TS.pri)
-local goScaryLabel = makeStateBadge(row2b)
-goScaryToggleBtn.MouseButton1Click:Connect(function()
-    goScaryActive = not goScaryActive; setGoScaryVis(goScaryActive)
-    -- turning on scary boss disables the other
-    if goScaryActive then goActive = false; setGoVis(false); goLabel.Text = "OFF"; goLabel.TextColor3 = DIM end
-    goScaryLabel.Text      = goScaryActive and "ON" or "OFF"
-    goScaryLabel.TextColor3= goScaryActive and TS.good or DIM
 end)
 
 makeSection(spamContent, "Combat", 3, TS.pri)
@@ -1451,7 +1455,129 @@ summonCountLabel.LayoutOrder         = 11
 summonCountLabel.TextXAlignment      = Enum.TextXAlignment.Right
 summonCountLabel.Parent              = spamContent
 
-local statusTxt, statusDot = makeStatusPill(spamContent, 12, TS.pri)
+-- ════════════════════════════════════════════
+--  BOSS KILL TIMER  —  Spam tab
+-- ════════════════════════════════════════════
+makeSection(spamContent, "Kill Timer  (auto-reset on timeout)", 12, TS.pri)
+
+-- Toggle row
+local killTimerRow = makeRow(spamContent, "Kill Timer:", 13, TS.pri)
+local killTimerStateLabel = makeStateBadge(killTimerRow)
+local killTimerToggleBtn, setKillTimerVis = makeToggle(killTimerRow, false, TS.pri)
+killTimerToggleBtn.MouseButton1Click:Connect(function()
+    killTimerActive = not killTimerActive
+    setKillTimerVis(killTimerActive)
+    killTimerStateLabel.Text      = killTimerActive and "ON" or "OFF"
+    killTimerStateLabel.TextColor3= killTimerActive and TS.bad or DIM
+    if not killTimerActive then
+        killTimerStart = nil
+    end
+end)
+
+-- Duration stepper row (mirrors the webhook interval widget exactly)
+local killDurRow = Instance.new("Frame")
+killDurRow.Size             = UDim2.new(1, 0, 0, 38)
+killDurRow.BackgroundColor3 = CARD
+killDurRow.BorderSizePixel  = 0
+killDurRow.LayoutOrder      = 14
+killDurRow.Parent           = spamContent
+corner(10, killDurRow); newStroke(TS.pri, 0.9, killDurRow)
+
+local kdMinusBtn = Instance.new("TextButton")
+kdMinusBtn.Text             = "−"
+kdMinusBtn.Font             = Enum.Font.GothamBold
+kdMinusBtn.TextSize         = 18
+kdMinusBtn.TextColor3       = WHITE
+kdMinusBtn.BackgroundColor3 = CARD
+kdMinusBtn.BorderSizePixel  = 0
+kdMinusBtn.Size             = UDim2.new(0, 34, 0, 28)
+kdMinusBtn.Position         = UDim2.new(0, 8, 0.5, -14)
+kdMinusBtn.Parent           = killDurRow
+corner(8, kdMinusBtn); newStroke(TS.pri, 1, kdMinusBtn)
+kdMinusBtn.MouseEnter:Connect(function() tw(kdMinusBtn, 0.12, {BackgroundColor3 = TS.pri}) end)
+kdMinusBtn.MouseLeave:Connect(function() tw(kdMinusBtn, 0.12, {BackgroundColor3 = CARD}) end)
+
+local kdPlusBtn = Instance.new("TextButton")
+kdPlusBtn.Text             = "+"
+kdPlusBtn.Font             = Enum.Font.GothamBold
+kdPlusBtn.TextSize         = 18
+kdPlusBtn.TextColor3       = WHITE
+kdPlusBtn.BackgroundColor3 = CARD
+kdPlusBtn.BorderSizePixel  = 0
+kdPlusBtn.Size             = UDim2.new(0, 34, 0, 28)
+kdPlusBtn.Position         = UDim2.new(1, -42, 0.5, -14)
+kdPlusBtn.Parent           = killDurRow
+corner(8, kdPlusBtn); newStroke(TS.pri, 1, kdPlusBtn)
+kdPlusBtn.MouseEnter:Connect(function() tw(kdPlusBtn, 0.12, {BackgroundColor3 = TS.pri}) end)
+kdPlusBtn.MouseLeave:Connect(function() tw(kdPlusBtn, 0.12, {BackgroundColor3 = CARD}) end)
+
+-- Clickable centre label
+local kdLabel = Instance.new("TextButton")
+kdLabel.Text               = "60s"
+kdLabel.Font               = Enum.Font.GothamBold
+kdLabel.TextSize           = 18
+kdLabel.TextColor3         = TS.text
+kdLabel.BackgroundTransparency = 1
+kdLabel.BorderSizePixel    = 0
+kdLabel.Size               = UDim2.new(1, -100, 1, 0)
+kdLabel.Position           = UDim2.new(0, 50, 0, 0)
+kdLabel.TextXAlignment     = Enum.TextXAlignment.Center
+kdLabel.Parent             = killDurRow
+
+-- Hidden TextBox for manual entry
+local kdEditBox = Instance.new("TextBox")
+kdEditBox.Text               = ""
+kdEditBox.Font               = Enum.Font.GothamBold
+kdEditBox.TextSize           = 18
+kdEditBox.TextColor3         = TS.text
+kdEditBox.PlaceholderText    = "type secs…"
+kdEditBox.PlaceholderColor3  = DIM
+kdEditBox.BackgroundColor3   = INPUTBG
+kdEditBox.BorderSizePixel    = 0
+kdEditBox.ClearTextOnFocus   = true
+kdEditBox.Visible            = false
+kdEditBox.Size               = UDim2.new(1, -100, 1, 0)
+kdEditBox.Position           = UDim2.new(0, 50, 0, 0)
+kdEditBox.TextXAlignment     = Enum.TextXAlignment.Center
+kdEditBox.Parent             = killDurRow
+corner(6, kdEditBox); newStroke(TS.pri, 1.2, kdEditBox)
+
+kdLabel.MouseButton1Click:Connect(function()
+    kdLabel.Visible  = false
+    kdEditBox.Visible = true
+    kdEditBox.Text   = ""
+    kdEditBox:CaptureFocus()
+end)
+kdEditBox.FocusLost:Connect(function(entered)
+    local v = tonumber(kdEditBox.Text)
+    if entered and v and v >= 1 then
+        killTimerDuration = math.floor(v)
+        kdLabel.Text      = tostring(killTimerDuration) .. "s"
+    end
+    kdEditBox.Visible = false
+    kdLabel.Visible   = true
+    kdEditBox.Text    = ""
+end)
+
+local KD_STEPS = {15, 30, 45, 60, 90, 120, 180, 300, 600}
+local kdIndex  = 4   -- default 60s
+local function updateKdLabel()
+    kdLabel.Text      = tostring(KD_STEPS[kdIndex]) .. "s"
+    killTimerDuration = KD_STEPS[kdIndex]
+end
+kdMinusBtn.MouseButton1Click:Connect(function()
+    if kdIndex > 1 then kdIndex -= 1; updateKdLabel() end
+end)
+kdPlusBtn.MouseButton1Click:Connect(function()
+    if kdIndex < #KD_STEPS then kdIndex += 1; updateKdLabel() end
+end)
+
+-- Kill timer status pill
+local killTimerStatusLbl, killTimerStatusDot = makeStatusPill(spamContent, 15, TS.pri)
+killTimerStatusLbl.Text = "Kill timer: OFF"
+killTimerLabel = killTimerStatusLbl   -- wire to the background loop
+
+local statusTxt, statusDot = makeStatusPill(spamContent, 16, TS.pri)
 statusTxt.Text = "Boss: searching..."
 
 -- ════════════════════════════════════════════════════════════
@@ -1853,9 +1979,10 @@ minBtn.MouseButton1Click:Connect(function()
 end)
 
 closeBtn.MouseButton1Click:Connect(function()
-    spamActive = false; goActive = false; goScaryActive = false; autoFireActive = false
+    spamActive = false; goActive = false; autoFireActive = false
     autoSummonActive = false; webhookActive = false; standRollActive = false
     questActive = false; autoFireNPCActive = false; autoDiavoloActive = false
+    killTimerActive = false; killTimerStart = nil
     if summonDeathConn then summonDeathConn:Disconnect() end
     tw(frame,     0.18, {BackgroundTransparency = 1})
     tw(glowFrame, 0.18, {BackgroundTransparency = 1})
