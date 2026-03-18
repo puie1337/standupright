@@ -63,6 +63,8 @@ local standRollCount    = 0
 local standRollLabel    = nil  -- assigned after GUI
 local standStatusLabel  = nil  -- assigned after GUI
 local standMentionID    = ""   -- Discord user ID to @mention on stop alert
+local _setStandVis      = nil  -- assigned after GUI
+local _setStandVis      = nil  -- assigned after GUI (forward ref used in roll loop)
 -- ──────────────────────────────────────────────
 -- BOSS KILL TIMER STATE
 -- ──────────────────────────────────────────────
