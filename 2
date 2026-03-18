@@ -287,7 +287,7 @@ task.spawn(function()
 			killTimerLastHP = nil
 			if killTimerCountdown then
 				killTimerCountdown.Text      = "Waiting…"
-				killTimerCountdown.TextColor3= MUTED
+				killTimerCountdown.TextColor3= Color3.fromRGB(100, 90, 145)
 			end
 			continue
 		end
@@ -973,7 +973,7 @@ iconLbl.Size                = UDim2.new(1, 0, 1, 0)
 iconLbl.Parent              = iconBadge
 
 local titleLbl = Instance.new("TextLabel")
-titleLbl.Text               = "BOSS SPAMMER V2"
+titleLbl.Text               = "BOSS SPAMMER"
 titleLbl.Font               = Enum.Font.GothamBold
 titleLbl.TextSize           = 14
 titleLbl.TextColor3         = THEME.spam.text
