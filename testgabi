@@ -29,16 +29,16 @@ local FIRE_RATE    = 0.05
 local TWEEN_TIME   = 0.3
 
 -- State
-local useTween          = false
-local goActive          = true
-local spamActive        = true
-local autoFireActive    = true
+local useTween          = true
+local goActive          = false
+local spamActive        = false
+local autoFireActive    = false
 local autoFireNPCActive = false
 local autoDiavoloActive = false
-local autoSummonActive  = true
+local autoSummonActive  = false
 
 local webhookURL        = "https://discord.com/api/webhooks/1415703512897163345/IjSwc39PEOWq802zGcrm-HsHftTXQSVn7TlmVAl9PCtlUIGovyhtOpwo8rCMz9Jf37g4"
-local webhookInterval   = 1800
+local webhookInterval   = 60
 local webhookActive     = true
 local lastWebhookSend   = 0
 local webhookSendCount  = 0
