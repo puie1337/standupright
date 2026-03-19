@@ -446,111 +446,133 @@ end)
 -- QUEST STATE
 -- ══════════════════════════════════════════════
 local QS = {
-	attackEnabled = { M1 = true, Barrage = true, Heavy = false },
-	selectedQuest = nil,
 	running       = false,
 	smartQuest    = false,
-	attackDelay   = 0.15,
+	selectedQuest = nil,
+	attackDelay   = 0.05,   -- reuses FIRE_RATE timing
 }
-local questDropBtn    = nil  -- assigned after GUI builds
-local questStatusLbl  = nil
-local questStatusDot  = nil
 local questFarmThread = nil
 local questActive     = { value = nil }
+-- GUI handles assigned after the GUI is built
+local questDropBtn   = nil
+local questStatusLbl = nil
+local questStatusDot = nil
 
 -- ══════════════════════════════════════════════
 -- QUEST DATA
+-- Each entry: enemyName, maxSpawn, take(), done()
 -- ══════════════════════════════════════════════
 local Quests = {
-	{ name="Lvl 1  — Bad Gi",          level=1,   enemyName="Bad Gi",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 10 — Scary Monster",   level=10,  enemyName="Scary Monster",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 20 — Giorno Giovanna", level=20,  enemyName="Giorno Giovanna",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 30 — Rker Dummy",      level=30,  enemyName="Rker Dummy",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 40 — Yoshikage Kira",  level=40,  enemyName="Yoshikage Kira",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 50 — Dio Over Heaven", level=50,  enemyName="Dio Over Heaven",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 75 — Angelo",          level=75,  enemyName="Angelo",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 100 — Alien",          level=100, enemyName="Alien",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 125 — Jotaro Pt4",     level=125, enemyName="Jotaro Part 4",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 150 — Kakyoin",        level=150, enemyName="Kakyoin",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 175 — Jungle Bandit",  level=175, enemyName="Jungle Bandit",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 200 — Sewer Vampire",  level=200, enemyName="Sewer Vampire",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("QuestDone"):FireServer() end },
-	{ name="Lvl 275 — Pillerman",      level=275, enemyName="Pillerman",
-	  take=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("Done"):FireServer() end,
-	  done=function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("QuestDone"):FireServer() end },
+	{ name = "Lvl 1   — Bad Gi",          level = 1,   enemyName = "Bad Gi",          maxSpawn = 3,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 10  — Scary Monster",   level = 10,  enemyName = "Scary Monster",   maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Scared Noob"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 20  — Giorno Giovanna", level = 20,  enemyName = "Giorno Giovanna", maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Koichi"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 30  — Rker Dummy",      level = 30,  enemyName = "Rker Dummy",      maxSpawn = 2,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("aLLmemester"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 40  — Yoshikage Kira",  level = 40,  enemyName = "Yoshikage Kira",  maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Okayasu"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 50  — Dio Over Heaven", level = 50,  enemyName = "Dio Over Heaven", maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Joseph Joestar"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 75  — Angelo",          level = 75,  enemyName = "Angelo",          maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Josuke"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 100 — Alien",           level = 100, enemyName = "Alien",           maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Rohan"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 125 — Jotaro Pt4",      level = 125, enemyName = "Jotaro Part 4",  maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("DIO"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 150 — Kakyoin",         level = 150, enemyName = "Kakyoin",         maxSpawn = 1,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Muhammed Avdol"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 175 — Jungle Bandit",   level = 175, enemyName = "Jungle Bandit",   maxSpawn = 3,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Giorno"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 200 — Sewer Vampire",   level = 200, enemyName = "Sewer Vampire",   maxSpawn = 3,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Zeppeli"):WaitForChild("QuestDone"):FireServer() end) end },
+
+	{ name = "Lvl 275 — Pillerman",       level = 275, enemyName = "Pillerman",       maxSpawn = 3,
+	  take = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("Done"):FireServer() end) end,
+	  done = function() pcall(function() workspace:WaitForChild("Map"):WaitForChild("NPCs"):WaitForChild("Young Joseph"):WaitForChild("QuestDone"):FireServer() end) end },
 }
 
 -- ══════════════════════════════════════════════
 -- QUEST LOGIC
+-- Uses the same SPAM_REMOTES as the Spammer tab
 -- ══════════════════════════════════════════════
-local function questDoAttacks()
-	local c = LocalPlayer.Character; if not c then return end
-	local se = c:FindFirstChild("StandEvents"); if not se then return end
-	if QS.attackEnabled.M1 then
-		local r = se:FindFirstChild("M1"); if r then pcall(function() r:FireServer() end) end
-		task.wait(QS.attackDelay)
-	end
-	if QS.attackEnabled.Barrage then
-		local r = se:FindFirstChild("Barrage"); if r then pcall(function() r:FireServer(true) end) end
-		task.wait(QS.attackDelay)
-	end
-	if QS.attackEnabled.Heavy then
-		local r = se:FindFirstChild("Heavy"); if r then pcall(function() r:FireServer() end) end
-		task.wait(QS.attackDelay)
-	end
-end
 
-local function questGetEnemies(enemyName)
-	local enemies = {}
-	local living = workspace:FindFirstChild("Living"); if not living then return enemies end
+-- Returns all living enemies with the given name (health > 0)
+local function questGetAliveEnemies(enemyName)
+	local result = {}
+	local living = workspace:FindFirstChild("Living")
+	if not living then return result end
 	for _, obj in ipairs(living:GetChildren()) do
 		if obj.Name == enemyName then
 			local hum = obj:FindFirstChildOfClass("Humanoid")
-			if hum and hum.Health > 0 then table.insert(enemies, obj) end
+			if hum and hum.Health > 0 then
+				table.insert(result, obj)
+			end
 		end
 	end
-	return enemies
+	return result
 end
 
-local function questIsAlive(enemy)
-	local hum = enemy:FindFirstChildOfClass("Humanoid")
-	return hum and hum.Health > 0
-end
-
-local function questTeleportBehind(enemy)
+-- Teleport behind an enemy (same logic as boss movement)
+local function questTeleportTo(enemy)
 	local hrp = getRootPart(); if not hrp then return end
 	local eHRP = enemy:FindFirstChild("HumanoidRootPart"); if not eHRP then return end
 	hrp.CFrame = eHRP.CFrame * CFrame.new(0, 0, 5)
 end
 
-local function questKillEnemy(enemy)
-	while QS.running and questIsAlive(enemy) do
-		questTeleportBehind(enemy)
-		questDoAttacks()
+-- Fire the currently selected SPAM_REMOTES attacks once
+-- This reuses EXACTLY the same remotes the Spammer tab uses
+local function questFireAttacks()
+	for _, remote in ipairs(SPAM_REMOTES) do
+		if remote.selected then
+			remote.fire()
+		end
+	end
+	task.wait(QS.attackDelay)
+end
+
+-- Kill one enemy: teleport behind it and spam attacks until HP = 0
+local function questKillOne(enemy)
+	while QS.running do
+		local hum = enemy:FindFirstChildOfClass("Humanoid")
+		if not hum or hum.Health <= 0 then break end  -- dead (ragdolled), move on
+		questTeleportTo(enemy)
+		questFireAttacks()
 		task.wait(0.05)
+	end
+end
+
+-- Kill all currently alive enemies for this quest, one by one
+local function questKillAll(enemyName)
+	while QS.running do
+		local enemies = questGetAliveEnemies(enemyName)
+		if #enemies == 0 then break end     -- all dead, done
+		questKillOne(enemies[1])            -- kill first alive one, then loop to re-scan
+		task.wait(0.1)
 	end
 end
 
@@ -565,31 +587,34 @@ local function questGetPlayerLevel()
 	return 0
 end
 
-local function questGetSmart()
+local function questGetSmartQuest()
 	local level = questGetPlayerLevel()
-	local best = nil
+	local best  = nil
 	for _, q in ipairs(Quests) do
 		if q.level <= level then best = q end
 	end
 	return best
 end
 
-local function questRunRemoteLoop()
-	while QS.running do
-		if questActive.value then
-			pcall(questActive.value.take)
-			pcall(questActive.value.done)
-		end
-		task.wait(0.5)
-	end
-end
-
+-- Main quest loop: spam take+done remotes while killing enemies
 local function questRun(startQuest)
 	questActive.value = startQuest
-	task.spawn(questRunRemoteLoop)
+
+	-- Background loop: constantly re-fires take + done remotes
+	local remoteThread = task.spawn(function()
+		while QS.running do
+			if questActive.value then
+				questActive.value.take()
+				questActive.value.done()
+			end
+			task.wait(0.5)
+		end
+	end)
+
 	while QS.running do
+		-- Smart mode: re-check level each cycle and upgrade quest if needed
 		if QS.smartQuest then
-			local smart = questGetSmart()
+			local smart = questGetSmartQuest()
 			if smart and smart.name ~= questActive.value.name then
 				questActive.value   = smart
 				QS.selectedQuest    = smart
@@ -597,14 +622,25 @@ local function questRun(startQuest)
 				if questStatusLbl then questStatusLbl.Text = "Smart — " .. smart.name end
 			end
 		end
+
+		-- Kill all alive enemies for the current quest
+		local q = questActive.value
+		if questStatusLbl then
+			questStatusLbl.Text      = "Killing: " .. q.enemyName
+			questStatusLbl.TextColor3 = Color3.fromRGB(140, 255, 160)
+		end
+
+		-- Wait up to 2 minutes for enemies to spawn + be killed
 		local timeout = tick() + 120
 		repeat
-			local enemies = questGetEnemies(questActive.value.enemyName)
-			if #enemies > 0 then questKillEnemy(enemies[1]); task.wait(0.2)
-			else task.wait(0.3) end
+			questKillAll(q.enemyName)
+			if tick() < timeout then task.wait(0.5) end  -- wait for respawn
 		until not QS.running or tick() > timeout
+
 		task.wait(0.2)
 	end
+
+	task.cancel(remoteThread)
 end
 
 -- ══════════════════════════════════════════════
@@ -811,10 +847,10 @@ tabBg.Parent           = frame
 corner(12, tabBg); newStroke(DIM, 0.8, tabBg)
 
 local TAB_DEFS = {
-	{ id="spam",    label="⚔  Spammer",   xScale=0    },
-	{ id="webhook", label="🔔  Webhook",  xScale=0.25 },
-	{ id="stand",   label="★  Stand Roll",xScale=0.5  },
-	{ id="quest",   label="📋  Quest",    xScale=0.75 },
+	{ id="spam",    label="⚔ Spam",   xScale=0    },
+	{ id="webhook", label="🔔 Hook",  xScale=0.25 },
+	{ id="stand",   label="★ Stand",  xScale=0.5  },
+	{ id="quest",   label="📋 Quest", xScale=0.75 },
 }
 
 local tabPills = {}
@@ -1635,7 +1671,7 @@ local questContent = makeContentFrame(bodyArea)
 
 makeSection(questContent, "Select Quest", 0, TQ.pri)
 
--- Dropdown button (inside the scrollable content, like all other rows)
+-- Dropdown button (sits inside questContent like any other row)
 local qDropBtnInst = Instance.new("TextButton")
 qDropBtnInst.Text             = "▼  Choose a Quest..."
 qDropBtnInst.Font             = Enum.Font.Gotham
@@ -1650,10 +1686,10 @@ qDropBtnInst.Parent           = questContent
 corner(8, qDropBtnInst)
 newStroke(TQ.pri, 1, qDropBtnInst)
 pad(0, 0, 10, 0, qDropBtnInst)
-questDropBtn = qDropBtnInst  -- expose to quest logic
+questDropBtn = qDropBtnInst  -- expose to quest logic for smart-quest updates
 
--- Dropdown list parented to `frame` (NOT bodyArea/questContent)
--- so it floats above the scroll layout without being pushed by it
+-- Dropdown list — parented to `frame` (NOT bodyArea/questContent) so it
+-- floats above the scroll layout without being pushed by UIListLayout
 local qDropList = Instance.new("ScrollingFrame")
 qDropList.Size                   = UDim2.new(1, -20, 0, 0)
 qDropList.BackgroundColor3       = Color3.fromRGB(16, 10, 32)
@@ -1663,7 +1699,7 @@ qDropList.ScrollBarImageColor3   = TQ.pri
 qDropList.Visible                = false
 qDropList.ClipsDescendants       = true
 qDropList.ZIndex                 = 20
-qDropList.Parent                 = frame   -- floats above everything
+qDropList.Parent                 = frame  -- floats above everything
 corner(8, qDropList)
 newStroke(TQ.pri, 1, qDropList)
 
@@ -1686,11 +1722,11 @@ for i, quest in ipairs(Quests) do
 	item.ZIndex                 = 21
 	item.Parent                 = qDropList
 	item.MouseEnter:Connect(function()
-		item.BackgroundColor3 = Color3.fromRGB(55, 30, 95)
+		item.BackgroundColor3       = Color3.fromRGB(55, 30, 95)
 		item.BackgroundTransparency = 0
 	end)
 	item.MouseLeave:Connect(function()
-		item.BackgroundColor3 = Color3.fromRGB(22, 14, 42)
+		item.BackgroundColor3       = Color3.fromRGB(22, 14, 42)
 		item.BackgroundTransparency = 0.3
 	end)
 	item.MouseButton1Click:Connect(function()
@@ -1706,7 +1742,7 @@ local qDropOpen = false
 qDropBtnInst.MouseButton1Click:Connect(function()
 	qDropOpen = not qDropOpen
 	if qDropOpen then
-		-- Position the list just below the button, relative to frame
+		-- Position the list just below the button, relative to frame origin
 		local btnAbs   = qDropBtnInst.AbsolutePosition
 		local frameAbs = frame.AbsolutePosition
 		local relY     = (btnAbs.Y - frameAbs.Y) + qDropBtnInst.AbsoluteSize.Y + 2
@@ -1720,31 +1756,10 @@ qDropBtnInst.MouseButton1Click:Connect(function()
 	end
 end)
 
-makeSection(questContent, "Attack Config", 2, TQ.pri)
+-- Smart Quest toggle
+makeSection(questContent, "Smart Quest", 2, TQ.pri)
 
-local questAtkDefs = {
-	{ key="M1",      label="M1 Punch",   icon="👊" },
-	{ key="Barrage", label="Barrage",     icon="⚡" },
-	{ key="Heavy",   label="Heavy Punch", icon="💥" },
-}
-for i, atk in ipairs(questAtkDefs) do
-	local row = makeRow(questContent, atk.icon .. "  " .. atk.label, 2 + i, TQ.pri)
-	local stateLbl = makeStateBadge(row)
-	stateLbl.Text       = QS.attackEnabled[atk.key] and "ON" or "OFF"
-	stateLbl.TextColor3 = QS.attackEnabled[atk.key] and TQ.good or DIM
-	local togBtn, setVis = makeToggle(row, QS.attackEnabled[atk.key], TQ.pri)
-	togBtn.MouseButton1Click:Connect(function()
-		QS.attackEnabled[atk.key] = not QS.attackEnabled[atk.key]
-		local on = QS.attackEnabled[atk.key]
-		setVis(on)
-		stateLbl.Text       = on and "ON" or "OFF"
-		stateLbl.TextColor3 = on and TQ.good or DIM
-	end)
-end
-
-makeSection(questContent, "Smart Quest", 6, TQ.pri)
-
-local smartRow      = makeRow(questContent, "🧠  Auto-pick by level", 7, TQ.pri)
+local smartRow      = makeRow(questContent, "🧠  Auto-pick by level", 3, TQ.pri)
 local smartStateLbl = makeStateBadge(smartRow)
 smartStateLbl.Text = "OFF"; smartStateLbl.TextColor3 = DIM
 local smartTogBtn, setSmartVis = makeToggle(smartRow, false, TQ.pri)
@@ -1755,7 +1770,7 @@ smartTogBtn.MouseButton1Click:Connect(function()
 	smartStateLbl.Text       = on and "ON" or "OFF"
 	smartStateLbl.TextColor3 = on and TQ.good or DIM
 	if on then
-		local smart = questGetSmart()
+		local smart = questGetSmartQuest()
 		if smart then
 			QS.selectedQuest  = smart
 			qDropBtnInst.Text = "▼  " .. smart.name
@@ -1763,13 +1778,34 @@ smartTogBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
-makeSection(questContent, "Control", 8, TQ.pri)
+-- Attack note: quest uses the same attack pills selected in the Spammer tab
+local attackNoteFrame = Instance.new("Frame")
+attackNoteFrame.Size             = UDim2.new(1, 0, 0, 28)
+attackNoteFrame.BackgroundColor3 = Color3.fromRGB(14, 10, 28)
+attackNoteFrame.BorderSizePixel  = 0
+attackNoteFrame.LayoutOrder      = 4
+attackNoteFrame.Parent           = questContent
+corner(8, attackNoteFrame)
+newStroke(TQ.pri, 0.6, attackNoteFrame)
+
+local attackNote = Instance.new("TextLabel")
+attackNote.Text                   = "⚔  Uses attacks selected in the Spammer tab"
+attackNote.Font                   = Enum.Font.Gotham
+attackNote.TextSize               = 10
+attackNote.TextColor3             = TQ.sub
+attackNote.BackgroundTransparency = 1
+attackNote.Size                   = UDim2.new(1, 0, 1, 0)
+attackNote.TextXAlignment         = Enum.TextXAlignment.Center
+attackNote.Parent                 = attackNoteFrame
+
+-- Start / Stop farming button
+makeSection(questContent, "Control", 5, TQ.pri)
 
 local qCtrlFrame = Instance.new("Frame")
 qCtrlFrame.Size             = UDim2.new(1, 0, 0, 42)
 qCtrlFrame.BackgroundColor3 = TQ.pri
 qCtrlFrame.BorderSizePixel  = 0
-qCtrlFrame.LayoutOrder      = 9
+qCtrlFrame.LayoutOrder      = 6
 qCtrlFrame.Parent           = questContent
 corner(10, qCtrlFrame)
 
@@ -1783,13 +1819,14 @@ qStartBtn.TextSize               = 14
 qStartBtn.BorderSizePixel        = 0
 qStartBtn.Parent                 = qCtrlFrame
 
-local qStatusTxt, qStatusDot = makeStatusPill(questContent, 10, TQ.pri)
+local qStatusTxt, qStatusDot = makeStatusPill(questContent, 7, TQ.pri)
 questStatusLbl = qStatusTxt
 questStatusDot = qStatusDot
 questStatusLbl.Text = "Idle"
 
 qStartBtn.MouseButton1Click:Connect(function()
 	if QS.running then
+		-- STOP
 		QS.running = false
 		if questFarmThread then task.cancel(questFarmThread); questFarmThread = nil end
 		qStartBtn.Text                  = "▶  START FARMING"
@@ -1798,8 +1835,9 @@ qStartBtn.MouseButton1Click:Connect(function()
 		questStatusLbl.TextColor3       = MUTED
 		questStatusDot.BackgroundColor3 = MUTED
 	else
+		-- START — validate selection first
 		if QS.smartQuest then
-			local smart = questGetSmart()
+			local smart = questGetSmartQuest()
 			if smart then
 				QS.selectedQuest  = smart
 				qDropBtnInst.Text = "▼  " .. smart.name
@@ -1815,6 +1853,17 @@ qStartBtn.MouseButton1Click:Connect(function()
 			questStatusDot.BackgroundColor3 = TQ.bad
 			return
 		end
+
+		-- Make sure at least one attack is selected in the Spammer tab
+		local hasAttack = false
+		for _, r in ipairs(SPAM_REMOTES) do if r.selected then hasAttack = true; break end end
+		if not hasAttack then
+			questStatusLbl.Text             = "⚠  Enable attacks in Spam tab!"
+			questStatusLbl.TextColor3       = TQ.bad
+			questStatusDot.BackgroundColor3 = TQ.bad
+			return
+		end
+
 		QS.running     = true
 		qStartBtn.Text = "⏹  STOP FARMING"
 		tw(qCtrlFrame, 0.2, {BackgroundColor3 = Color3.fromRGB(160, 30, 80)})
@@ -1833,7 +1882,7 @@ local allContents = {
 	spam    = spamContent,
 	webhook = webhookContent,
 	stand   = standContent,
-	quest   = questContent,   -- Fix 4: quest tab registered so switchTab hides/shows it correctly
+	quest   = questContent,  -- registered so switchTab correctly hides/shows it
 }
 
 local function switchTab(tab)
@@ -1842,7 +1891,7 @@ local function switchTab(tab)
 	end
 	bodyArea.CanvasPosition = Vector2.new(0, 0)
 
-	-- Close quest dropdown when leaving the quest tab
+	-- Close the quest dropdown whenever we leave the quest tab
 	if tab ~= "quest" and qDropOpen then
 		qDropOpen = false
 		qDropList.Visible = false
@@ -1902,9 +1951,9 @@ closeBtn.MouseButton1Click:Connect(function()
 	webhookActive     = false
 	standRollActive   = false
 	killTimerActive   = false
-	QS.running        = false
-	if questFarmThread then task.cancel(questFarmThread); questFarmThread = nil end
-	if summonDeathConn then summonDeathConn:Disconnect() end
+	QS.running        = false  -- stop quest farming loop
+	if questFarmThread  then task.cancel(questFarmThread); questFarmThread = nil end
+	if summonDeathConn  then summonDeathConn:Disconnect() end
 	tw(frame,     0.18, {BackgroundTransparency = 1})
 	tw(glowFrame, 0.18, {BackgroundTransparency = 1})
 	task.wait(0.2)
